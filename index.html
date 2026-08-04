@@ -1,13 +1,527 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>storageos</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>StorageOS — Gestión de Almacenes</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    :root{
+      --bg1:#0f1117;--bg2:#1a1d27;--bg3:#22263a;
+      --border:rgba(255,255,255,.08);
+      --accent:#3b82f6;--accent2:#60a5fa;
+      --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+      --green:#22c55e;--red:#ef4444;--yellow:#f59e0b;
+    }
+    body{background:var(--bg1);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;}
+    input,select,textarea{background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 12px;font-size:13px;width:100%;outline:none;}
+    input:focus,select:focus{border-color:var(--accent);}
+    button{cursor:pointer;border:none;border-radius:8px;font-size:13px;font-weight:600;padding:9px 18px;transition:.15s;}
+    .btn-primary{background:var(--accent);color:#fff;}
+    .btn-primary:hover{background:var(--accent2);}
+    .btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border);}
+    .btn-ghost:hover{background:var(--bg3);}
+    .btn-danger{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3);}
+    label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);display:block;margin-bottom:5px;}
+
+    /* Login */
+    #loginOverlay{position:fixed;inset:0;background:var(--bg1);display:flex;align-items:center;justify-content:center;z-index:9999;}
+    .login-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:40px;width:380px;}
+    .login-box h1{font-size:22px;font-weight:800;color:var(--accent);margin-bottom:4px;}
+    .login-box p{font-size:12px;color:var(--text3);margin-bottom:28px;}
+    .login-box .field{margin-bottom:16px;}
+    .login-error{color:#ef4444;font-size:12px;margin-top:8px;display:none;}
+
+    /* Shell */
+    .shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh;}
+    .sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:20px 0;display:flex;flex-direction:column;}
+    .sidebar-logo{padding:0 20px 20px;border-bottom:1px solid var(--border);margin-bottom:12px;}
+    .sidebar-logo span{font-size:16px;font-weight:800;color:var(--accent);}
+    .sidebar-logo small{display:block;font-size:10px;color:var(--text3);margin-top:2px;}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;font-size:13px;color:var(--text2);cursor:pointer;border-left:3px solid transparent;transition:.15s;}
+    .nav-item:hover{background:var(--bg3);color:var(--text);}
+    .nav-item.active{background:rgba(59,130,246,.1);color:var(--accent);border-left-color:var(--accent);}
+    .nav-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);padding:16px 20px 6px;}
+    .main{padding:28px;overflow-y:auto;}
+    .page-title{font-size:20px;font-weight:700;margin-bottom:4px;}
+    .page-sub{font-size:13px;color:var(--text3);margin-bottom:24px;}
+
+    /* Cards */
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;}
+    .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px;}
+    .kpi-val{font-size:28px;font-weight:800;margin-bottom:4px;}
+    .kpi-lbl{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;}
+
+    /* Table */
+    .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px;}
+    .card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+    .card-header h3{font-size:14px;font-weight:600;}
+    table{width:100%;border-collapse:collapse;}
+    thead tr{background:rgba(255,255,255,.03);}
+    th{padding:10px 16px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.06em;}
+    td{padding:11px 16px;font-size:13px;border-bottom:1px solid var(--border);}
+    tr:last-child td{border-bottom:none;}
+    tr:hover td{background:rgba(255,255,255,.02);}
+
+    /* Modal */
+    .modal-overlay{position:fixed;inset:0;background:rgba(10,15,35,.85);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
+    .modal-overlay.open{display:flex;}
+    .modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;}
+    .modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+    .modal-header h3{font-size:15px;font-weight:700;}
+    .modal-body{padding:24px;}
+    .modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+    .form-field{margin-bottom:14px;}
+
+    /* Badge */
+    .badge{display:inline-block;padding:2px 9px;border-radius:5px;font-size:10px;font-weight:700;}
+    .badge-green{background:rgba(34,197,94,.15);color:#22c55e;}
+    .badge-red{background:rgba(239,68,68,.15);color:#ef4444;}
+    .badge-yellow{background:rgba(245,158,11,.15);color:#f59e0b;}
+    .badge-blue{background:rgba(59,130,246,.15);color:#60a5fa;}
+
+    .empty{padding:48px;text-align:center;color:var(--text3);}
+    .loading{padding:48px;text-align:center;color:var(--text3);}
+    .toast{position:fixed;bottom:24px;right:24px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-size:13px;z-index:9999;display:none;max-width:340px;}
+    .toast.show{display:block;}
+    .toast.success{border-color:rgba(34,197,94,.4);color:#22c55e;}
+    .toast.error{border-color:rgba(239,68,68,.4);color:#ef4444;}
+  </style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <h1>StorageOS</h1>
+    <p>Gestión de almacenes · EFI Logistics</p>
+    <div class="field">
+      <label>Correo electrónico</label>
+      <input type="email" id="loginEmail" placeholder="usuario@empresa.com"/>
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"/>
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:8px;" onclick="login()">Ingresar</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- Shell -->
+<div class="shell" id="shell" style="display:none;">
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <span>StorageOS</span>
+      <small>Gestión de almacenes</small>
+    </div>
+    <div class="nav-section">Principal</div>
+    <div class="nav-item active" onclick="navTo('dashboard')">📊 Dashboard</div>
+    <div class="nav-section">Catálogo</div>
+    <div class="nav-item" onclick="navTo('bodegas')">🏭 Bodegas</div>
+    <div class="nav-item" onclick="navTo('clientes')">👥 Clientes</div>
+    <div class="nav-item" onclick="navTo('contratos')">📄 Contratos</div>
+    <div class="nav-section">Operaciones</div>
+    <div class="nav-item" onclick="navTo('ocupaciones')">📦 Ocupaciones</div>
+    <div style="flex:1;"></div>
+    <div class="nav-item" onclick="logout()" style="color:var(--text3);">🚪 Cerrar sesión</div>
+  </div>
+  <div class="main" id="mainArea"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">Modal</h3>
+      <button class="btn-ghost" style="padding:4px 10px;" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://zhmzjiozzdoutnqujbin.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpobXpqaW96emRvdXRucXVqYmluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNTU0NTMsImV4cCI6MjA5NzczMTQ1M30.r0ptqPhLTXO94CC1TDg23NAnAgsCb5UHj3gl917o8yk';
+var _jwt = SUPABASE_KEY;
+var _user = null;
+
+function sbh(extra) {
+  var h = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + _jwt, 'Content-Type': 'application/json' };
+  if (extra) Object.assign(h, extra);
+  return h;
+}
+
+async function sbFetch(path, opts) {
+  var res = await fetch(SUPABASE_URL + path, { headers: sbh(opts && opts.headers), ...opts });
+  return res;
+}
+
+// ── AUTH ─────────────────────────────────────────────────────
+async function login() {
+  var email = document.getElementById('loginEmail').value.trim();
+  var pass  = document.getElementById('loginPassword').value;
+  var errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  if (!email || !pass) { errEl.textContent = 'Ingresá email y contraseña.'; errEl.style.display = 'block'; return; }
+  try {
+    var res  = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pass })
+    });
+    var data = await res.json();
+    if (!res.ok || !data.access_token) throw new Error(data.error_description || data.msg || 'Error de autenticación');
+    _jwt  = data.access_token;
+    _user = data.user;
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.getElementById('shell').style.display = 'grid';
+    navTo('dashboard');
+  } catch(e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+}
+
+function logout() {
+  _jwt = SUPABASE_KEY; _user = null;
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('shell').style.display = 'none';
+}
+
+// ── NAV ──────────────────────────────────────────────────────
+function navTo(page) {
+  document.querySelectorAll('.nav-item').forEach(function(el){ el.classList.remove('active'); });
+  var items = document.querySelectorAll('.nav-item');
+  items.forEach(function(el){ if (el.textContent.toLowerCase().includes(page) || el.getAttribute('onclick')&&el.getAttribute('onclick').includes(page)) el.classList.add('active'); });
+  var pages = { dashboard: renderDashboard, bodegas: renderBodegas, clientes: renderClientes, contratos: renderContratos, ocupaciones: renderOcupaciones };
+  if (pages[page]) pages[page]();
+}
+
+// ── TOAST ────────────────────────────────────────────────────
+function toast(msg, type) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + (type || 'success');
+  setTimeout(function(){ el.className = 'toast'; }, 3000);
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+
+function openModal(title, bodyHtml, footerHtml) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+  document.getElementById('modalFooter').innerHTML = footerHtml || '';
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function fmt(n) { return (n||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── DASHBOARD ─────────────────────────────────────────────────
+async function renderDashboard() {
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando dashboard...</div>';
+  try {
+    var [resBod, resCli, resCont] = await Promise.all([
+      sbFetch('/rest/v1/bodegas?select=id,nombre,mts2_totales,mts2_disponibles&limit=100'),
+      sbFetch('/rest/v1/clientes_almacen?select=id&limit=1', {'Prefer':'count=exact','Range':'0-0'}),
+      sbFetch('/rest/v1/contratos?select=id,mts2_contratados,valor_m2,activo&limit=500')
+    ]);
+    var bodegas   = await resBod.json();
+    var cliHdr    = resCli.headers.get('Content-Range');
+    var totalCli  = cliHdr ? parseInt(cliHdr.split('/')[1])||0 : 0;
+    var contratos = await resCont.json();
+    if (!Array.isArray(bodegas))   bodegas   = [];
+    if (!Array.isArray(contratos)) contratos = [];
+    var totalMts  = bodegas.reduce(function(a,b){ return a+(b.mts2_totales||0); }, 0);
+    var dispMts   = bodegas.reduce(function(a,b){ return a+(b.mts2_disponibles||0); }, 0);
+    var activeCont = contratos.filter(function(c){ return c.activo; });
+    var ingresos  = activeCont.reduce(function(a,c){ return a+(c.mts2_contratados||0)*(c.valor_m2||0); }, 0);
+    var ocupPct   = totalMts > 0 ? Math.round(((totalMts-dispMts)/totalMts)*100) : 0;
+
+    document.getElementById('mainArea').innerHTML =
+      '<div class="page-title">Dashboard</div>' +
+      '<div class="page-sub">Resumen general de almacenes · ' + new Date().toLocaleDateString('es-SV') + '</div>' +
+      '<div class="kpi-grid">' +
+        kpi(bodegas.length, 'Bodegas', '#3b82f6') +
+        kpi(totalMts.toLocaleString(), 'M² Totales', '#8b5cf6') +
+        kpi(ocupPct + '%', 'Ocupación', ocupPct>80?'#ef4444':ocupPct>60?'#f59e0b':'#22c55e') +
+        kpi(totalCli, 'Clientes', '#06b6d4') +
+        kpi(activeCont.length, 'Contratos activos', '#22c55e') +
+        kpi('$' + fmt(ingresos), 'Ingresos/mes', '#f59e0b') +
+      '</div>' +
+      '<div class="card">' +
+        '<div class="card-header"><h3>Estado de bodegas</h3></div>' +
+        '<table><thead><tr><th>Bodega</th><th>M² Totales</th><th>M² Disponibles</th><th>Ocupación</th></tr></thead><tbody>' +
+        (bodegas.length === 0 ? '<tr><td colspan="4" class="empty">Sin bodegas registradas</td></tr>' :
+        bodegas.map(function(b){
+          var ocp = b.mts2_totales > 0 ? Math.round(((b.mts2_totales-(b.mts2_disponibles||0))/b.mts2_totales)*100) : 0;
+          var color = ocp>80?'#ef4444':ocp>60?'#f59e0b':'#22c55e';
+          return '<tr><td><strong>' + esc(b.nombre) + '</strong></td><td>' + (b.mts2_totales||0).toLocaleString() + '</td><td>' + (b.mts2_disponibles||0).toLocaleString() + '</td>' +
+            '<td><span style="color:' + color + ';font-weight:700;">' + ocp + '%</span></td></tr>';
+        }).join('')) +
+        '</tbody></table></div>';
+  } catch(e) { document.getElementById('mainArea').innerHTML = '<div class="empty">Error: ' + e.message + '</div>'; }
+}
+
+function kpi(val, lbl, color) {
+  return '<div class="kpi"><div class="kpi-val" style="color:' + color + ';">' + val + '</div><div class="kpi-lbl">' + lbl + '</div></div>';
+}
+
+// ── BODEGAS ──────────────────────────────────────────────────
+async function renderBodegas() {
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando bodegas...</div>';
+  var res  = await sbFetch('/rest/v1/bodegas?select=*&order=nombre.asc');
+  var data = await res.json();
+  if (!Array.isArray(data)) data = [];
+  document.getElementById('mainArea').innerHTML =
+    '<div class="page-title">Bodegas</div>' +
+    '<div class="page-sub">Gestión de almacenes y capacidades</div>' +
+    '<div class="card">' +
+      '<div class="card-header"><h3>Lista de bodegas (' + data.length + ')</h3>' +
+        '<button class="btn-primary" onclick="abrirModalBodega()">+ Nueva bodega</button>' +
+      '</div>' +
+      '<table><thead><tr><th>Nombre</th><th>Ubicación</th><th>M² Totales</th><th>M² Disponibles</th><th>Valor m²</th><th>Acciones</th></tr></thead><tbody>' +
+      (data.length === 0 ? '<tr><td colspan="6" class="empty">Sin bodegas. Agregá la primera.</td></tr>' :
+      data.map(function(b){
+        return '<tr><td><strong>' + esc(b.nombre) + '</strong></td><td>' + esc(b.ubicacion||'—') + '</td>' +
+          '<td>' + (b.mts2_totales||0).toLocaleString() + '</td><td>' + (b.mts2_disponibles||0).toLocaleString() + '</td>' +
+          '<td>$' + fmt(b.valor_m2_alquiler) + '</td>' +
+          '<td><button class="btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="abrirModalBodega(' + b.id + ')">Editar</button></td></tr>';
+      }).join('')) +
+      '</tbody></table></div>';
+  window._bodegasData = data;
+}
+
+function abrirModalBodega(id) {
+  var b = id ? (window._bodegasData||[]).find(function(x){ return x.id===id; }) : null;
+  openModal(b ? 'Editar bodega' : 'Nueva bodega',
+    '<div class="form-field"><label>Nombre *</label><input id="bNombre" value="' + esc(b&&b.nombre||'') + '"/></div>' +
+    '<div class="form-field"><label>Ubicación</label><input id="bUbicacion" value="' + esc(b&&b.ubicacion||'') + '"/></div>' +
+    '<div class="form-row">' +
+      '<div><label>M² Totales *</label><input id="bMts2" type="number" value="' + (b&&b.mts2_totales||'') + '"/></div>' +
+      '<div><label>% Pasillos</label><input id="bPasillos" type="number" value="' + (b&&b.pct_pasillos||15) + '"/></div>' +
+    '</div>' +
+    '<div class="form-field"><label>Valor m² alquiler ($/m²)</label><input id="bValor" type="number" step="0.01" value="' + (b&&b.valor_m2_alquiler||'') + '"/></div>',
+    '<button class="btn-ghost" onclick="closeModal()">Cancelar</button>' +
+    '<button class="btn-primary" onclick="guardarBodega(' + (id||0) + ')">Guardar</button>'
+  );
+}
+
+async function guardarBodega(id) {
+  var nombre   = document.getElementById('bNombre').value.trim();
+  var ubicacion= document.getElementById('bUbicacion').value.trim();
+  var mts2     = parseFloat(document.getElementById('bMts2').value)||0;
+  var pasillos = parseFloat(document.getElementById('bPasillos').value)||15;
+  var valor    = parseFloat(document.getElementById('bValor').value)||0;
+  if (!nombre || !mts2) { toast('Nombre y M² son requeridos', 'error'); return; }
+  var disponibles = Math.round(mts2 * (1 - pasillos/100));
+  var rec = { nombre, ubicacion: ubicacion||null, mts2_totales: mts2, pct_pasillos: pasillos, mts2_disponibles: disponibles, valor_m2_alquiler: valor };
+  var res = await sbFetch('/rest/v1/bodegas' + (id ? '?id=eq.'+id : ''), {
+    method: id ? 'PATCH' : 'POST',
+    body: JSON.stringify(rec)
+  });
+  if (res.ok) { toast(id ? 'Bodega actualizada' : 'Bodega creada'); closeModal(); renderBodegas(); }
+  else { var e = await res.json(); toast('Error: '+(e.message||e.hint||res.status), 'error'); }
+}
+
+// ── CLIENTES ─────────────────────────────────────────────────
+async function renderClientes() {
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando clientes...</div>';
+  var res  = await sbFetch('/rest/v1/clientes_almacen?select=*&order=razon_social.asc');
+  var data = await res.json();
+  if (!Array.isArray(data)) data = [];
+  document.getElementById('mainArea').innerHTML =
+    '<div class="page-title">Clientes</div>' +
+    '<div class="page-sub">Empresas con espacio en almacenes</div>' +
+    '<div class="card">' +
+      '<div class="card-header"><h3>Clientes (' + data.length + ')</h3>' +
+        '<button class="btn-primary" onclick="abrirModalCliente()">+ Nuevo cliente</button>' +
+      '</div>' +
+      '<table><thead><tr><th>Código</th><th>Razón Social</th><th>NIT</th><th>Correo</th><th>Acciones</th></tr></thead><tbody>' +
+      (data.length === 0 ? '<tr><td colspan="5" class="empty">Sin clientes. Agregá el primero.</td></tr>' :
+      data.map(function(c){
+        return '<tr><td><span class="badge badge-blue">' + esc(c.codigo||'—') + '</span></td>' +
+          '<td><strong>' + esc(c.razon_social) + '</strong></td>' +
+          '<td>' + esc(c.nit||'—') + '</td><td>' + esc(c.correo||'—') + '</td>' +
+          '<td><button class="btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="abrirModalCliente(' + c.id + ')">Editar</button></td></tr>';
+      }).join('')) +
+      '</tbody></table></div>';
+  window._clientesData = data;
+}
+
+function abrirModalCliente(id) {
+  var c = id ? (window._clientesData||[]).find(function(x){ return x.id===id; }) : null;
+  openModal(c ? 'Editar cliente' : 'Nuevo cliente',
+    '<div class="form-row">' +
+      '<div><label>Código *</label><input id="cCodigo" value="' + esc(c&&c.codigo||'') + '"/></div>' +
+      '<div><label>NIT</label><input id="cNit" value="' + esc(c&&c.nit||'') + '"/></div>' +
+    '</div>' +
+    '<div class="form-field"><label>Razón Social *</label><input id="cRazon" value="' + esc(c&&c.razon_social||'') + '"/></div>' +
+    '<div class="form-field"><label>Dirección</label><input id="cDir" value="' + esc(c&&c.direccion||'') + '"/></div>' +
+    '<div class="form-field"><label>Correo</label><input id="cCorreo" type="email" value="' + esc(c&&c.correo||'') + '"/></div>',
+    '<button class="btn-ghost" onclick="closeModal()">Cancelar</button>' +
+    '<button class="btn-primary" onclick="guardarCliente(' + (id||0) + ')">Guardar</button>'
+  );
+}
+
+async function guardarCliente(id) {
+  var codigo = document.getElementById('cCodigo').value.trim();
+  var razon  = document.getElementById('cRazon').value.trim();
+  var nit    = document.getElementById('cNit').value.trim();
+  var dir    = document.getElementById('cDir').value.trim();
+  var correo = document.getElementById('cCorreo').value.trim();
+  if (!codigo || !razon) { toast('Código y Razón Social son requeridos', 'error'); return; }
+  var rec = { codigo, razon_social: razon, nit: nit||null, direccion: dir||null, correo: correo||null };
+  var res = await sbFetch('/rest/v1/clientes_almacen' + (id ? '?id=eq.'+id : ''), {
+    method: id ? 'PATCH' : 'POST',
+    body: JSON.stringify(rec)
+  });
+  if (res.ok) { toast(id ? 'Cliente actualizado' : 'Cliente creado'); closeModal(); renderClientes(); }
+  else { var e = await res.json(); toast('Error: '+(e.message||e.hint||res.status), 'error'); }
+}
+
+// ── CONTRATOS ────────────────────────────────────────────────
+async function renderContratos() {
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando contratos...</div>';
+  var [resCont, resBod, resCli] = await Promise.all([
+    sbFetch('/rest/v1/contratos?select=*,bodegas(nombre),clientes_almacen(razon_social,codigo)&order=fecha_fin.asc'),
+    sbFetch('/rest/v1/bodegas?select=id,nombre&order=nombre.asc'),
+    sbFetch('/rest/v1/clientes_almacen?select=id,codigo,razon_social&order=razon_social.asc')
+  ]);
+  var data    = await resCont.json();
+  var bodegas = await resBod.json();
+  var clientes= await resCli.json();
+  if (!Array.isArray(data))    data    = [];
+  if (!Array.isArray(bodegas)) bodegas = [];
+  if (!Array.isArray(clientes))clientes= [];
+  window._contratosData = data; window._bodegasOpts = bodegas; window._clientesOpts = clientes;
+  var hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('mainArea').innerHTML =
+    '<div class="page-title">Contratos</div>' +
+    '<div class="page-sub">Contratos de arrendamiento de espacio</div>' +
+    '<div class="card">' +
+      '<div class="card-header"><h3>Contratos (' + data.length + ')</h3>' +
+        '<button class="btn-primary" onclick="abrirModalContrato()">+ Nuevo contrato</button>' +
+      '</div>' +
+      '<table><thead><tr><th>Código</th><th>Cliente</th><th>Bodega</th><th>M²</th><th>Valor/m²</th><th>Vencimiento</th><th>Estado</th><th></th></tr></thead><tbody>' +
+      (data.length === 0 ? '<tr><td colspan="8" class="empty">Sin contratos. Agregá el primero.</td></tr>' :
+      data.map(function(c){
+        var vence = c.fecha_fin && c.fecha_fin < hoy;
+        var pronto = c.fecha_fin && !vence && c.fecha_fin <= new Date(Date.now()+30*86400000).toISOString().split('T')[0];
+        var badge = !c.activo ? '<span class="badge badge-red">Inactivo</span>' : vence ? '<span class="badge badge-red">Vencido</span>' : pronto ? '<span class="badge badge-yellow">Por vencer</span>' : '<span class="badge badge-green">Activo</span>';
+        var fFin = c.fecha_fin ? c.fecha_fin.split('-').reverse().join('/') : '—';
+        return '<tr><td><span class="badge badge-blue">' + esc(c.codigo||'—') + '</span></td>' +
+          '<td>' + esc(c.clientes_almacen&&c.clientes_almacen.razon_social||'—') + '</td>' +
+          '<td>' + esc(c.bodegas&&c.bodegas.nombre||'—') + '</td>' +
+          '<td>' + (c.mts2_contratados||0).toLocaleString() + '</td>' +
+          '<td>$' + fmt(c.valor_m2) + '</td>' +
+          '<td>' + fFin + '</td><td>' + badge + '</td>' +
+          '<td><button class="btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="abrirModalContrato(' + c.id + ')">Editar</button></td></tr>';
+      }).join('')) +
+      '</tbody></table></div>';
+}
+
+function abrirModalContrato(id) {
+  var c    = id ? (window._contratosData||[]).find(function(x){ return x.id===id; }) : null;
+  var bods = (window._bodegasOpts||[]).map(function(b){ return '<option value="'+b.id+'"'+(c&&c.bodega_id===b.id?' selected':'')+'>'+esc(b.nombre)+'</option>'; }).join('');
+  var clis = (window._clientesOpts||[]).map(function(cl){ return '<option value="'+cl.id+'"'+(c&&c.cliente_id===cl.id?' selected':'')+'>'+esc(cl.codigo+' - '+cl.razon_social)+'</option>'; }).join('');
+  openModal(c ? 'Editar contrato' : 'Nuevo contrato',
+    '<div class="form-row">' +
+      '<div><label>Código *</label><input id="ctCodigo" value="' + esc(c&&c.codigo||'') + '"/></div>' +
+      '<div><label>Activo</label><select id="ctActivo"><option value="true"'+((!c||c.activo)?' selected':'')+'>Sí</option><option value="false"+(c&&!c.activo?' selected':'')+'>No</option></select></div>' +
+    '</div>' +
+    '<div class="form-field"><label>Cliente *</label><select id="ctCliente"><option value="">— Seleccionar —</option>' + clis + '</select></div>' +
+    '<div class="form-field"><label>Bodega *</label><select id="ctBodega"><option value="">— Seleccionar —</option>' + bods + '</select></div>' +
+    '<div class="form-row">' +
+      '<div><label>M² contratados *</label><input id="ctMts2" type="number" value="' + (c&&c.mts2_contratados||'') + '"/></div>' +
+      '<div><label>Valor m² ($/m²) *</label><input id="ctValor" type="number" step="0.01" value="' + (c&&c.valor_m2||'') + '"/></div>' +
+    '</div>' +
+    '<div class="form-row">' +
+      '<div><label>Fecha inicio</label><input id="ctInicio" type="date" value="' + (c&&c.fecha_inicio||'') + '"/></div>' +
+      '<div><label>Fecha fin</label><input id="ctFin" type="date" value="' + (c&&c.fecha_fin||'') + '"/></div>' +
+    '</div>' +
+    '<div class="form-field"><label>Observaciones</label><textarea id="ctObs" rows="2">' + esc(c&&c.observaciones||'') + '</textarea></div>',
+    '<button class="btn-ghost" onclick="closeModal()">Cancelar</button>' +
+    '<button class="btn-primary" onclick="guardarContrato(' + (id||0) + ')">Guardar</button>'
+  );
+}
+
+async function guardarContrato(id) {
+  var codigo   = document.getElementById('ctCodigo').value.trim();
+  var clienteId= parseInt(document.getElementById('ctCliente').value)||null;
+  var bodegaId = parseInt(document.getElementById('ctBodega').value)||null;
+  var mts2     = parseFloat(document.getElementById('ctMts2').value)||0;
+  var valor    = parseFloat(document.getElementById('ctValor').value)||0;
+  var inicio   = document.getElementById('ctInicio').value||null;
+  var fin      = document.getElementById('ctFin').value||null;
+  var obs      = document.getElementById('ctObs').value.trim();
+  var activo   = document.getElementById('ctActivo').value === 'true';
+  if (!codigo || !clienteId || !bodegaId || !mts2 || !valor) { toast('Completá los campos requeridos', 'error'); return; }
+  var rec = { codigo, cliente_id: clienteId, bodega_id: bodegaId, mts2_contratados: mts2, valor_m2: valor, fecha_inicio: inicio, fecha_fin: fin, observaciones: obs||null, activo };
+  var res = await sbFetch('/rest/v1/contratos' + (id ? '?id=eq.'+id : ''), {
+    method: id ? 'PATCH' : 'POST',
+    body: JSON.stringify(rec)
+  });
+  if (res.ok) { toast(id ? 'Contrato actualizado' : 'Contrato creado'); closeModal(); renderContratos(); }
+  else { var e = await res.json(); toast('Error: '+(e.message||e.hint||res.status), 'error'); }
+}
+
+// ── OCUPACIONES ──────────────────────────────────────────────
+async function renderOcupaciones() {
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando ocupaciones...</div>';
+  var res  = await sbFetch('/rest/v1/ocupaciones?select=*,contratos(codigo,bodegas(nombre),clientes_almacen(razon_social))&order=semana.desc&limit=100');
+  var data = await res.json();
+  if (!Array.isArray(data)) data = [];
+  document.getElementById('mainArea').innerHTML =
+    '<div class="page-title">Ocupaciones</div>' +
+    '<div class="page-sub">Registro semanal de M² ocupados por contrato</div>' +
+    '<div class="card">' +
+      '<div class="card-header"><h3>Últimos registros</h3>' +
+        '<button class="btn-primary" onclick="abrirModalOcupacion()">+ Registrar ocupación</button>' +
+      '</div>' +
+      '<table><thead><tr><th>Semana</th><th>Cliente</th><th>Bodega</th><th>Contrato</th><th>M² Ocupados</th></tr></thead><tbody>' +
+      (data.length === 0 ? '<tr><td colspan="5" class="empty">Sin registros de ocupación.</td></tr>' :
+      data.map(function(o){
+        var cont = o.contratos||{};
+        return '<tr><td>' + (o.semana||'—') + '</td>' +
+          '<td>' + esc(cont.clientes_almacen&&cont.clientes_almacen.razon_social||'—') + '</td>' +
+          '<td>' + esc(cont.bodegas&&cont.bodegas.nombre||'—') + '</td>' +
+          '<td><span class="badge badge-blue">' + esc(cont.codigo||'—') + '</span></td>' +
+          '<td><strong>' + (o.mts2_ocupados||0).toLocaleString() + ' m²</strong></td></tr>';
+      }).join('')) +
+      '</tbody></table></div>';
+}
+
+async function abrirModalOcupacion() {
+  var resCont = await sbFetch('/rest/v1/contratos?select=id,codigo,clientes_almacen(razon_social)&activo=eq.true&order=codigo.asc');
+  var conts   = await resCont.json();
+  if (!Array.isArray(conts)) conts = [];
+  var hoy = new Date().toISOString().split('T')[0];
+  openModal('Registrar ocupación',
+    '<div class="form-field"><label>Contrato *</label><select id="ocCont"><option value="">— Seleccionar —</option>' +
+    conts.map(function(c){ return '<option value="'+c.id+'">'+esc(c.codigo+' — '+(c.clientes_almacen&&c.clientes_almacen.razon_social||''))+'</option>'; }).join('') +
+    '</select></div>' +
+    '<div class="form-row">' +
+      '<div><label>Semana (fecha lunes) *</label><input id="ocSemana" type="date" value="' + hoy + '"/></div>' +
+      '<div><label>M² Ocupados *</label><input id="ocMts2" type="number"/></div>' +
+    '</div>',
+    '<button class="btn-ghost" onclick="closeModal()">Cancelar</button>' +
+    '<button class="btn-primary" onclick="guardarOcupacion()">Guardar</button>'
+  );
+}
+
+async function guardarOcupacion() {
+  var contId = parseInt(document.getElementById('ocCont').value)||null;
+  var semana = document.getElementById('ocSemana').value;
+  var mts2   = parseFloat(document.getElementById('ocMts2').value)||0;
+  if (!contId || !semana || !mts2) { toast('Completá todos los campos', 'error'); return; }
+  var res = await sbFetch('/rest/v1/ocupaciones', {
+    method: 'POST',
+    body: JSON.stringify({ contrato_id: contId, semana, mts2_ocupados: mts2 })
+  });
+  if (res.ok) { toast('Ocupación registrada'); closeModal(); renderOcupaciones(); }
+  else { var e = await res.json(); toast('Error: '+(e.message||e.hint||res.status), 'error'); }
+}
+</script>
+</body>
 </html>
