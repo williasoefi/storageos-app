@@ -348,20 +348,20 @@ async function guardarBodega(id) {
 }
 
 // ── CLIENTES ─────────────────────────────────────────────────
+// ── CLIENTES ─────────────────────────────────────────────────
 async function renderClientes() {
   document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando clientes...</div>';
   var [resCli, resCont] = await Promise.all([
     sbFetch('/rest/v1/clientes_almacen?select=*&order=razon_social.asc'),
     sbFetch('/rest/v1/contratos?select=*,bodegas(nombre)&activo=eq.true&order=cliente_id.asc')
   ]);
-  var data     = await resCli.json();
-  var contratos= await resCont.json();
-  if (!Array.isArray(data))     data     = [];
+  var data      = await resCli.json();
+  var contratos = await resCont.json();
+  if (!Array.isArray(data))      data      = [];
   if (!Array.isArray(contratos)) contratos = [];
 
-  // Agrupar contratos por cliente
   var contPorCli = {};
-  contratos.forEach(function(c){ 
+  contratos.forEach(function(c){
     if (!contPorCli[c.cliente_id]) contPorCli[c.cliente_id] = [];
     contPorCli[c.cliente_id].push(c);
   });
@@ -373,32 +373,178 @@ async function renderClientes() {
       '<div class="card-header"><h3>Clientes (' + data.length + ')</h3>' +
         '<button class="btn-primary" onclick="abrirModalCliente()">+ Nuevo cliente</button>' +
       '</div>' +
-      '<table><thead><tr><th>Código</th><th>Razón Social</th><th>NIT</th><th>Almacenes contratados</th><th>Total M²</th><th>Acciones</th></tr></thead><tbody>' +
-      (data.length === 0 ? '<tr><td colspan="6" class="empty">Sin clientes. Agregá el primero.</td></tr>' :
+      '<table><thead><tr><th>Código</th><th>Razón Social</th><th>NIT</th><th>Almacenes</th><th>Total M²</th><th></th></tr></thead><tbody>' +
+      (data.length === 0 ? '<tr><td colspan="6" class="empty">Sin clientes.</td></tr>' :
       data.map(function(c){
         var cliConts = contPorCli[c.id] || [];
         var totalMts = cliConts.reduce(function(a,ct){ return a+(ct.mts2_contratados||0); }, 0);
-        var almacenes = cliConts.length === 0
-          ? '<span style="color:var(--text3);font-size:11px;">Sin contratos activos</span>'
-          : cliConts.map(function(ct){
-              return '<span style="background:rgba(59,130,246,.1);color:#60a5fa;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;margin-right:4px;">' +
-                esc((ct.bodegas&&ct.bodegas.nombre)||'—') + ' · ' + (ct.mts2_contratados||0).toLocaleString() + ' m²' +
-              '</span>';
-            }).join('');
         return '<tr>' +
           '<td><span class="badge badge-blue">' + esc(c.codigo||'—') + '</span></td>' +
           '<td><strong>' + esc(c.razon_social) + '</strong></td>' +
           '<td>' + esc(c.nit||'—') + '</td>' +
-          '<td>' + almacenes + '</td>' +
+          '<td><span style="color:var(--text3);font-size:12px;">' + cliConts.length + ' almacén(es)</span></td>' +
           '<td><strong>' + totalMts.toLocaleString() + ' m²</strong></td>' +
           '<td style="display:flex;gap:6px;">' +
             '<button class="btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="abrirModalCliente(' + c.id + ')">Editar</button>' +
-            '<button class="btn-primary" style="padding:4px 10px;font-size:11px;" onclick="abrirModalContrato(0,' + c.id + ')">+ Almacén</button>' +
+            '<button class="btn-primary" style="padding:4px 10px;font-size:11px;" onclick="verDetalleCliente(' + c.id + ')">Ver detalle</button>' +
           '</td></tr>';
       }).join('')) +
       '</tbody></table></div>';
   window._clientesData = data;
+  window._contPorCli   = contPorCli;
 }
+
+async function verDetalleCliente(clienteId) {
+  var cli = (window._clientesData||[]).find(function(x){ return x.id===clienteId; });
+  if (!cli) return;
+  var [resBod, resCont] = await Promise.all([
+    sbFetch('/rest/v1/bodegas?select=id,nombre&order=nombre.asc'),
+    sbFetch('/rest/v1/contratos?select=*,bodegas(nombre)&cliente_id=eq.'+clienteId+'&order=created_at.asc')
+  ]);
+  var bodegas   = await resBod.json();
+  var contratos = await resCont.json();
+  if (!Array.isArray(bodegas))   bodegas   = [];
+  if (!Array.isArray(contratos)) contratos = [];
+  window._detalleClienteConts = contratos;
+  window._detalleClienteBods  = bodegas;
+  window._detalleClienteId    = clienteId;
+  _renderDetalleCliente(cli, contratos, bodegas);
+}
+
+function _renderDetalleCliente(cli, contratos, bodegas) {
+  var activos   = contratos.filter(function(c){ return c.activo; });
+  var totalMts  = activos.reduce(function(a,c){ return a+(c.mts2_contratados||0); }, 0);
+  var totalCosto= activos.reduce(function(a,c){ return a+(c.mts2_contratados||0)*(c.valor_m2||0); }, 0);
+  var bodOpts   = bodegas.map(function(b){ return '<option value="'+b.id+'">'+esc(b.nombre)+'</option>'; }).join('');
+
+  var contRows = contratos.length === 0
+    ? '<div style="padding:16px;color:var(--text3);text-align:center;font-size:13px;">Sin almacenes asignados.</div>'
+    : contratos.map(function(c){
+        var badge = c.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-red">Inactivo</span>';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);">' +
+          '<div>' +
+            '<div style="font-size:13px;font-weight:600;">' + esc((c.bodegas&&c.bodegas.nombre)||'—') + ' ' + badge + '</div>' +
+            '<div style="font-size:11px;color:var(--text3);margin-top:2px;">' +
+              (c.mts2_contratados||0).toLocaleString() + ' m² · $' + fmt(c.valor_m2) + '/m² · $' + fmt((c.mts2_contratados||0)*(c.valor_m2||0)) + '/mes' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;">' +
+            '<button class="btn-ghost" style="padding:3px 9px;font-size:11px;" onclick="editarContratoDetalle(' + c.id + ')">Editar</button>' +
+            '<button class="btn-danger" style="padding:3px 9px;font-size:11px;" onclick="toggleContratoActivo(' + c.id + ',' + (!c.activo) + ')">' + (c.activo?'Desactivar':'Activar') + '</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+  document.getElementById('modalTitle').textContent = cli.razon_social;
+  document.getElementById('modalBody').innerHTML =
+    '<div style="background:var(--bg3);border-radius:8px;padding:12px 16px;margin-bottom:16px;">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+        '<div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;">Código</div><div style="font-size:13px;font-weight:600;">' + esc(cli.codigo||'—') + '</div></div>' +
+        '<div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;">NIT</div><div style="font-size:13px;">' + esc(cli.nit||'—') + '</div></div>' +
+        '<div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;">Correo</div><div style="font-size:13px;">' + esc(cli.correo||'—') + '</div></div>' +
+        '<div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;">Dirección</div><div style="font-size:13px;">' + esc(cli.direccion||'—') + '</div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+      '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--text3);">Almacenes contratados</div>' +
+      '<button class="btn-primary" style="padding:5px 12px;font-size:12px;" onclick="mostrarFormAgregarAlmacen()">+ Agregar almacén</button>' +
+    '</div>' +
+    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;">' +
+      contRows +
+      '<div id="addAlmacenForm" style="display:none;padding:16px;background:var(--bg3);border-top:1px solid var(--border);">' +
+        '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Agregar almacén</div>' +
+        '<div class="form-row" style="margin-bottom:10px;">' +
+          '<div><label>Bodega *</label><select id="daiBodega"><option value="">— Seleccionar —</option>' + bodOpts + '</select></div>' +
+          '<div><label>Código contrato</label><input id="daiCodigo" placeholder="Auto-generado"/></div>' +
+        '</div>' +
+        '<div class="form-row" style="margin-bottom:10px;">' +
+          '<div><label>M² contratados *</label><input id="daiMts2" type="number" placeholder="0"/></div>' +
+          '<div><label>Valor m² ($/m²) *</label><input id="daiValor" type="number" step="0.01" placeholder="0.00"/></div>' +
+        '</div>' +
+        '<div class="form-row" style="margin-bottom:10px;">' +
+          '<div><label>Fecha inicio</label><input id="daiInicio" type="date"/></div>' +
+          '<div><label>Fecha fin</label><input id="daiFin" type="date"/></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
+          '<button class="btn-ghost" onclick="document.getElementById('addAlmacenForm').style.display='none'">Cancelar</button>' +
+          '<button class="btn-primary" onclick="guardarAlmacenCliente()">Guardar</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    (activos.length > 0 ?
+    '<div style="display:flex;gap:20px;padding:10px 14px;background:var(--bg3);border-radius:8px;">' +
+      '<div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;">Total M² activos</div><div style="font-size:16px;font-weight:800;color:var(--accent);">' + totalMts.toLocaleString() + ' m²</div></div>' +
+      '<div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;">Costo mensual</div><div style="font-size:16px;font-weight:800;color:#f59e0b;">$' + fmt(totalCosto) + '/mes</div></div>' +
+    '</div>' : '');
+
+  document.getElementById('modalFooter').innerHTML =
+    '<button class="btn-ghost" onclick="closeModal()">Cerrar</button>' +
+    '<button class="btn-ghost" onclick="abrirModalCliente(' + cli.id + ')">✏️ Editar datos</button>';
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function mostrarFormAgregarAlmacen() {
+  var f = document.getElementById('addAlmacenForm');
+  if (f) f.style.display = 'block';
+}
+
+async function guardarAlmacenCliente() {
+  var bodegaId = parseInt(document.getElementById('daiBodega').value)||null;
+  var codigo   = document.getElementById('daiCodigo').value.trim();
+  var mts2     = parseFloat(document.getElementById('daiMts2').value)||0;
+  var valor    = parseFloat(document.getElementById('daiValor').value)||0;
+  var inicio   = document.getElementById('daiInicio').value||null;
+  var fin      = document.getElementById('daiFin').value||null;
+  var clienteId= window._detalleClienteId;
+  if (!bodegaId || !mts2 || !valor) { toast('Bodega, M² y Valor son requeridos', 'error'); return; }
+  if (!codigo) codigo = 'CT-' + Date.now().toString().slice(-6);
+  var res = await sbFetch('/rest/v1/contratos', {
+    method: 'POST',
+    body: JSON.stringify({ codigo, cliente_id: clienteId, bodega_id: bodegaId, mts2_contratados: mts2, valor_m2: valor, fecha_inicio: inicio, fecha_fin: fin, activo: true })
+  });
+  if (res.ok) { toast('Almacén agregado'); await verDetalleCliente(clienteId); }
+  else { var e = await res.json(); toast('Error: '+(e.message||e.hint||res.status), 'error'); }
+}
+
+async function toggleContratoActivo(id, activo) {
+  var res = await sbFetch('/rest/v1/contratos?id=eq.'+id, { method: 'PATCH', body: JSON.stringify({ activo }) });
+  if (res.ok) { toast(activo ? 'Contrato activado' : 'Contrato desactivado'); await verDetalleCliente(window._detalleClienteId); }
+  else toast('Error al actualizar', 'error');
+}
+
+async function editarContratoDetalle(id) {
+  var c = (window._detalleClienteConts||[]).find(function(x){ return x.id===id; });
+  if (!c) return;
+  var bods = (window._detalleClienteBods||[]).map(function(b){ return '<option value="'+b.id+'"'+(c.bodega_id===b.id?' selected':'')+'>'+esc(b.nombre)+'</option>'; }).join('');
+  openModal('Editar almacén',
+    '<div class="form-field"><label>Bodega</label><select id="ectBodega"><option value="">—</option>'+bods+'</select></div>' +
+    '<div class="form-row">' +
+      '<div><label>M² contratados</label><input id="ectMts2" type="number" value="'+(c.mts2_contratados||'')+'"/></div>' +
+      '<div><label>Valor m² ($/m²)</label><input id="ectValor" type="number" step="0.01" value="'+(c.valor_m2||'')+'"/></div>' +
+    '</div>' +
+    '<div class="form-row">' +
+      '<div><label>Fecha inicio</label><input id="ectInicio" type="date" value="'+(c.fecha_inicio||'')+'"/></div>' +
+      '<div><label>Fecha fin</label><input id="ectFin" type="date" value="'+(c.fecha_fin||'')+'"/></div>' +
+    '</div>',
+    '<button class="btn-ghost" onclick="verDetalleCliente('+window._detalleClienteId+')">Cancelar</button>' +
+    '<button class="btn-primary" onclick="guardarEditarContratoDetalle('+id+')">Guardar</button>'
+  );
+}
+
+async function guardarEditarContratoDetalle(id) {
+  var bodegaId = parseInt(document.getElementById('ectBodega').value)||null;
+  var mts2     = parseFloat(document.getElementById('ectMts2').value)||0;
+  var valor    = parseFloat(document.getElementById('ectValor').value)||0;
+  var inicio   = document.getElementById('ectInicio').value||null;
+  var fin      = document.getElementById('ectFin').value||null;
+  var res = await sbFetch('/rest/v1/contratos?id=eq.'+id, {
+    method: 'PATCH',
+    body: JSON.stringify({ bodega_id: bodegaId, mts2_contratados: mts2, valor_m2: valor, fecha_inicio: inicio, fecha_fin: fin })
+  });
+  if (res.ok) { toast('Almacén actualizado'); await verDetalleCliente(window._detalleClienteId); }
+  else { var e = await res.json(); toast('Error: '+(e.message||e.hint||res.status), 'error'); }
+}
+
 
 function abrirModalCliente(id) {
   var c = id ? (window._clientesData||[]).find(function(x){ return x.id===id; }) : null;
