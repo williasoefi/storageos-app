@@ -428,7 +428,7 @@ function abrirModalContrato(id) {
   openModal(c ? 'Editar contrato' : 'Nuevo contrato',
     '<div class="form-row">' +
       '<div><label>Código *</label><input id="ctCodigo" value="' + esc(c&&c.codigo||'') + '"/></div>' +
-      '<div><label>Activo</label><select id="ctActivo"><option value="true"'+((!c||c.activo)?' selected':'')+'>Sí</option><option value="false"+(c&&!c.activo?' selected':'')+'>No</option></select></div>' +
+      '<div><label>Activo</label><select id="ctActivo"><option value="true"'+((!c||c.activo)?' selected':'')+'>Sí</option><option value="false"'+(c&&!c.activo?' selected':'')+'>No</option></select></div>' +
     '</div>' +
     '<div class="form-field"><label>Cliente *</label><select id="ctCliente"><option value="">— Seleccionar —</option>' + clis + '</select></div>' +
     '<div class="form-field"><label>Bodega *</label><select id="ctBodega"><option value="">— Seleccionar —</option>' + bods + '</select></div>' +
