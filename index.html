@@ -155,7 +155,9 @@ function sbh(extra) {
 }
 
 async function sbFetch(path, opts) {
-  var res = await fetch(SUPABASE_URL + path, { headers: sbh(opts && opts.headers), ...opts });
+  var options = Object.assign({}, opts);
+  options.headers = sbh(opts && opts.headers);
+  var res = await fetch(SUPABASE_URL + path, options);
   return res;
 }
 
@@ -708,9 +710,9 @@ function _renderLineasBodegas() {
   el.innerHTML = lineas.map(function(l, i){
     var opts = bodegas.map(function(b){ return '<option value="'+b.id+'"'+(l.bodega_id===b.id?' selected':'')+'>'+esc(b.nombre)+'</option>'; }).join('');
     return '<div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px;">' +
-      '<div><label>Bodega</label><select onchange="_updateLinea('+i+',"bodega_id",parseInt(this.value))"><option value="">—</option>'+opts+'</select></div>' +
-      '<div><label>M²</label><input type="number" value="'+l.mts2+'" onchange="_updateLinea('+i+',"mts2",parseFloat(this.value)||0)"/></div>' +
-      '<div><label>$/m²</label><input type="number" step="0.01" value="'+l.valor_m2+'" onchange="_updateLinea('+i+',"valor_m2",parseFloat(this.value)||0)"/></div>' +
+      '<div><label>Bodega</label><select onchange="_updateLinea('+i+','bodega_id',parseInt(this.value))"><option value="">—</option>'+opts+'</select></div>' +
+      '<div><label>M²</label><input type="number" value="'+l.mts2+'" onchange="_updateLinea('+i+','mts2',parseFloat(this.value)||0)"/></div>' +
+      '<div><label>$/m²</label><input type="number" step="0.01" value="'+l.valor_m2+'" onchange="_updateLinea('+i+','valor_m2',parseFloat(this.value)||0)"/></div>' +
       '<div><button class="btn-danger" style="padding:8px 10px;" onclick="_eliminarLinea('+i+')">✕</button></div>' +
     '</div>';
   }).join('');
@@ -824,3 +826,4 @@ async function guardarOcupacion() {
 </script>
 </body>
 </html>
+
