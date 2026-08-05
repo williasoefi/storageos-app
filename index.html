@@ -426,7 +426,7 @@ function _renderDetalleCliente(cli, contratos, bodegas) {
             '</div>' +
           '</div>' +
           '<div style="display:flex;gap:6px;">' +
-            '<button class="btn-ghost" style="padding:3px 9px;font-size:11px;" onclick="editarContratoDetalle(' + c.id + ')">Editar</button>' +
+            ((c.contrato_bodegas||[]).map(function(cb){ return '<button class="btn-ghost" style="padding:3px 9px;font-size:11px;" onclick="editarContratoDetalle('+c.id+','+cb.id+')">Editar '+esc((cb.bodegas&&cb.bodegas.nombre)||'')+'</button>'; }).join('')) +
             '<button class="btn-danger" style="padding:3px 9px;font-size:11px;" onclick="toggleContratoActivo(' + c.id + ',' + (!c.activo) + ')">' + (c.activo?'Desactivar':'Activar') + '</button>' +
           '</div>' +
         '</div>';
@@ -495,12 +495,22 @@ async function guardarAlmacenCliente() {
   var clienteId= window._detalleClienteId;
   if (!bodegaId || !mts2 || !valor) { toast('Bodega, M² y Valor son requeridos', 'error'); return; }
   if (!codigo) codigo = 'CT-' + Date.now().toString().slice(-6);
+  // Crear contrato
   var res = await sbFetch('/rest/v1/contratos', {
     method: 'POST',
-    body: JSON.stringify({ codigo, cliente_id: clienteId, bodega_id: bodegaId, mts2_contratados: mts2, valor_m2: valor, fecha_inicio: inicio, fecha_fin: fin, activo: true })
+    headers: { 'Prefer': 'return=representation' },
+    body: JSON.stringify({ codigo, cliente_id: clienteId, fecha_inicio: inicio, fecha_fin: fin, activo: true })
   });
-  if (res.ok) { toast('Almacén agregado'); await verDetalleCliente(clienteId); }
-  else { var e = await res.json(); toast('Error: '+(e.message||e.hint||res.status), 'error'); }
+  if (!res.ok) { var e = await res.json(); toast('Error: '+(e.message||e.hint||res.status), 'error'); return; }
+  var saved  = await res.json();
+  var contId = Array.isArray(saved) ? saved[0].id : saved.id;
+  // Crear linea en contrato_bodegas
+  var res2 = await sbFetch('/rest/v1/contrato_bodegas', {
+    method: 'POST',
+    body: JSON.stringify({ contrato_id: contId, bodega_id: bodegaId, mts2: mts2, valor_m2: valor })
+  });
+  if (res2.ok) { toast('Almacén agregado'); await verDetalleCliente(clienteId); }
+  else { var e2 = await res2.json(); toast('Error: '+(e2.message||e2.hint||res2.status), 'error'); }
 }
 
 async function toggleContratoActivo(id, activo) {
@@ -509,22 +519,24 @@ async function toggleContratoActivo(id, activo) {
   else toast('Error al actualizar', 'error');
 }
 
-async function editarContratoDetalle(id) {
-  var c = (window._detalleClienteConts||[]).find(function(x){ return x.id===id; });
-  if (!c) return;
-  var bods = (window._detalleClienteBods||[]).map(function(b){ return '<option value="'+b.id+'"'+(c.bodega_id===b.id?' selected':'')+'>'+esc(b.nombre)+'</option>'; }).join('');
-  openModal('Editar almacén',
+async function editarContratoDetalle(contId, cbId) {
+  var c   = (window._detalleClienteConts||[]).find(function(x){ return x.id===contId; });
+  var cb  = c && (c.contrato_bodegas||[]).find(function(x){ return x.id===cbId; });
+  if (!c || !cb) return;
+  window._editingCBId = cbId;
+  var bods = (window._detalleClienteBods||[]).map(function(b){ return '<option value="'+b.id+'"'+(cb.bodega_id===b.id?' selected':'')+'>'+esc(b.nombre)+'</option>'; }).join('');
+  openModal('Editar línea de almacén',
     '<div class="form-field"><label>Bodega</label><select id="ectBodega"><option value="">—</option>'+bods+'</select></div>' +
     '<div class="form-row">' +
-      '<div><label>M² contratados</label><input id="ectMts2" type="number" value="'+(c.mts2_contratados||'')+'"/></div>' +
-      '<div><label>Valor m² ($/m²)</label><input id="ectValor" type="number" step="0.01" value="'+(c.valor_m2||'')+'"/></div>' +
+      '<div><label>M²</label><input id="ectMts2" type="number" value="'+(cb.mts2||0)+'"/></div>' +
+      '<div><label>$/m²</label><input id="ectValor" type="number" step="0.01" value="'+(cb.valor_m2||0)+'"/></div>' +
     '</div>' +
     '<div class="form-row">' +
       '<div><label>Fecha inicio</label><input id="ectInicio" type="date" value="'+(c.fecha_inicio||'')+'"/></div>' +
       '<div><label>Fecha fin</label><input id="ectFin" type="date" value="'+(c.fecha_fin||'')+'"/></div>' +
     '</div>',
     '<button class="btn-ghost" onclick="verDetalleCliente('+window._detalleClienteId+')">Cancelar</button>' +
-    '<button class="btn-primary" onclick="guardarEditarContratoDetalle('+id+')">Guardar</button>'
+    '<button class="btn-primary" onclick="guardarEditarContratoDetalle('+contId+')">Guardar</button>'
   );
 }
 
@@ -534,12 +546,21 @@ async function guardarEditarContratoDetalle(id) {
   var valor    = parseFloat(document.getElementById('ectValor').value)||0;
   var inicio   = document.getElementById('ectInicio').value||null;
   var fin      = document.getElementById('ectFin').value||null;
-  var res = await sbFetch('/rest/v1/contratos?id=eq.'+id, {
+  // Actualizar fechas del contrato
+  await sbFetch('/rest/v1/contratos?id=eq.'+id, {
     method: 'PATCH',
-    body: JSON.stringify({ bodega_id: bodegaId, mts2_contratados: mts2, valor_m2: valor, fecha_inicio: inicio, fecha_fin: fin })
+    body: JSON.stringify({ fecha_inicio: inicio, fecha_fin: fin })
   });
-  if (res.ok) { toast('Almacén actualizado'); await verDetalleCliente(window._detalleClienteId); }
-  else { var e = await res.json(); toast('Error: '+(e.message||e.hint||res.status), 'error'); }
+  // Actualizar linea en contrato_bodegas
+  var cbId = window._editingCBId;
+  if (cbId) {
+    var res = await sbFetch('/rest/v1/contrato_bodegas?id=eq.'+cbId, {
+      method: 'PATCH',
+      body: JSON.stringify({ bodega_id: bodegaId, mts2: mts2, valor_m2: valor })
+    });
+    if (res.ok) { toast('Almacén actualizado'); await verDetalleCliente(window._detalleClienteId); }
+    else { var e = await res.json(); toast('Error: '+(e.message||e.hint||res.status), 'error'); }
+  }
 }
 
 
