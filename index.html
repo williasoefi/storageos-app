@@ -24,7 +24,6 @@
     .btn-danger{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3);}
     label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);display:block;margin-bottom:5px;}
 
-    /* Login */
     #loginOverlay{position:fixed;inset:0;background:var(--bg1);display:flex;align-items:center;justify-content:center;z-index:9999;}
     .login-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:40px;width:380px;}
     .login-box h1{font-size:22px;font-weight:800;color:var(--accent);margin-bottom:4px;}
@@ -32,7 +31,6 @@
     .login-box .field{margin-bottom:16px;}
     .login-error{color:#ef4444;font-size:12px;margin-top:8px;display:none;}
 
-    /* Shell */
     .shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh;}
     .sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:20px 0;display:flex;flex-direction:column;}
     .sidebar-logo{padding:0 20px 20px;border-bottom:1px solid var(--border);margin-bottom:12px;}
@@ -46,13 +44,11 @@
     .page-title{font-size:20px;font-weight:700;margin-bottom:4px;}
     .page-sub{font-size:13px;color:var(--text3);margin-bottom:24px;}
 
-    /* Cards */
     .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px;}
     .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px;}
     .kpi-val{font-size:28px;font-weight:800;margin-bottom:4px;}
     .kpi-lbl{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;}
 
-    /* Table */
     .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px;}
     .card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
     .card-header h3{font-size:14px;font-weight:600;}
@@ -63,7 +59,6 @@
     tr:last-child td{border-bottom:none;}
     tr:hover td{background:rgba(255,255,255,.02);}
 
-    /* Modal */
     .modal-overlay{position:fixed;inset:0;background:rgba(10,15,35,.85);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
     .modal-overlay.open{display:flex;}
     .modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;}
@@ -74,12 +69,9 @@
     .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
     .form-field{margin-bottom:14px;}
 
-    /* Badge */
     .badge{display:inline-block;padding:2px 9px;border-radius:5px;font-size:10px;font-weight:700;}
     .badge-green{background:rgba(34,197,94,.15);color:#22c55e;}
     .badge-red{background:rgba(239,68,68,.15);color:#ef4444;}
-    .badge-yellow{background:rgba(245,158,11,.15);color:#f59e0b;}
-    .badge-blue{background:rgba(59,130,246,.15);color:#60a5fa;}
 
     .empty{padding:48px;text-align:center;color:var(--text3);}
     .loading{padding:48px;text-align:center;color:var(--text3);}
@@ -87,15 +79,11 @@
     .toast.show{display:block;}
     .toast.success{border-color:rgba(34,197,94,.4);color:#22c55e;}
     .toast.error{border-color:rgba(239,68,68,.4);color:#ef4444;}
-    .toast.info{border-color:rgba(59,130,246,.4);color:#60a5fa;}
-    
-    /* Status indicator */
     .session-status{position:fixed;bottom:24px;left:24px;font-size:11px;color:var(--text3);z-index:100;}
   </style>
 </head>
 <body>
 
-<!-- Login -->
 <div id="loginOverlay">
   <div class="login-box">
     <h1>StorageOS</h1>
@@ -113,7 +101,6 @@
   </div>
 </div>
 
-<!-- Shell -->
 <div class="shell" id="shell" style="display:none;">
   <div class="sidebar">
     <div class="sidebar-logo">
@@ -194,10 +181,7 @@ async function refreshToken() {
       headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: _refreshToken })
     });
-    if (!res.ok) {
-      console.warn('Token refresh falló, requiere nuevo login');
-      return false;
-    }
+    if (!res.ok) return false;
     var data = await res.json();
     if (data.access_token) {
       _jwt = data.access_token;
@@ -323,7 +307,6 @@ function toast(msg, type) {
 }
 
 function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
-
 function openModal(title, bodyHtml, footerHtml) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalBody').innerHTML = bodyHtml;
@@ -384,10 +367,118 @@ async function renderDashboard() {
   }
 }
 
-async function renderBodegas() { document.getElementById('mainArea').innerHTML = '<div class="page-title">🏭 Bodegas</div><div class="loading">En desarrollo...</div>'; }
-async function renderClientes() { document.getElementById('mainArea').innerHTML = '<div class="page-title">👥 Clientes</div><div class="loading">En desarrollo...</div>'; }
-async function renderContratos() { document.getElementById('mainArea').innerHTML = '<div class="page-title">📄 Contratos</div><div class="loading">En desarrollo...</div>'; }
-async function renderOcupaciones() { document.getElementById('mainArea').innerHTML = '<div class="page-title">📦 Ocupaciones</div><div class="loading">En desarrollo...</div>'; }
+async function renderBodegas() {
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando bodegas...</div>';
+  try {
+    var res = await sbFetch('/rest/v1/bodegas?order=nombre.asc');
+    var bodegas = await res.json();
+    if (!Array.isArray(bodegas)) bodegas = [];
+    
+    document.getElementById('mainArea').innerHTML =
+      '<div class="page-title">🏭 Bodegas</div>' +
+      '<div class="page-sub">Listado de almacenes disponibles</div>' +
+      '<div class="card">' +
+        '<div class="card-header"><h3>Bodegas</h3></div>' +
+        '<table><thead><tr><th>Nombre</th><th>Código</th><th>Total M²</th><th>Tarifa Base</th><th>Costo Personal</th><th>Dirección</th></tr></thead><tbody>' +
+        (bodegas.length === 0 ? '<tr><td colspan="6" class="empty">Sin bodegas registradas</td></tr>' :
+        bodegas.map(function(b){
+          return '<tr><td><strong>' + esc(b.nombre||'—') + '</strong></td>' +
+            '<td>' + esc(b.codigo||'—') + '</td>' +
+            '<td>' + fmtInt(b.mts2_totales||0) + ' m²</td>' +
+            '<td>$' + fmt(b.tarifa_base_m2||0) + '</td>' +
+            '<td>$' + fmt(b.costo_personal||0) + '</td>' +
+            '<td>' + esc(b.direccion||'—') + '</td></tr>';
+        }).join('')) +
+        '</tbody></table></div>';
+  } catch(e) {
+    toast('Error al cargar bodegas: ' + e.message, 'error');
+    document.getElementById('mainArea').innerHTML = '<div class="empty">Error cargando datos</div>';
+  }
+}
+
+async function renderClientes() {
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando clientes...</div>';
+  try {
+    var res = await sbFetch('/rest/v1/clientes_almacen?order=razon_social.asc');
+    var clientes = await res.json();
+    if (!Array.isArray(clientes)) clientes = [];
+    
+    document.getElementById('mainArea').innerHTML =
+      '<div class="page-title">👥 Clientes</div>' +
+      '<div class="page-sub">Listado de clientes activos e inactivos</div>' +
+      '<div class="card">' +
+        '<div class="card-header"><h3>Clientes</h3></div>' +
+        '<table><thead><tr><th>Razón Social</th><th>Contacto</th><th>Teléfono</th><th>Email</th><th>Estado</th></tr></thead><tbody>' +
+        (clientes.length === 0 ? '<tr><td colspan="5" class="empty">Sin clientes registrados</td></tr>' :
+        clientes.map(function(c){
+          var estado = c.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-red">Inactivo</span>';
+          return '<tr><td><strong>' + esc(c.razon_social||'—') + '</strong></td>' +
+            '<td>' + esc(c.nombre_contacto||'—') + '</td>' +
+            '<td>' + esc(c.telefono||'—') + '</td>' +
+            '<td>' + esc(c.email||'—') + '</td>' +
+            '<td>' + estado + '</td></tr>';
+        }).join('')) +
+        '</tbody></table></div>';
+  } catch(e) {
+    toast('Error al cargar clientes: ' + e.message, 'error');
+    document.getElementById('mainArea').innerHTML = '<div class="empty">Error cargando datos</div>';
+  }
+}
+
+async function renderContratos() {
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando contratos...</div>';
+  try {
+    var res = await sbFetch('/rest/v1/contratos?select=*,clientes_almacen(razon_social)&order=codigo.asc');
+    var contratos = await res.json();
+    if (!Array.isArray(contratos)) contratos = [];
+    
+    document.getElementById('mainArea').innerHTML =
+      '<div class="page-title">📄 Contratos</div>' +
+      '<div class="page-sub">Listado de contratos y arrendamientos</div>' +
+      '<div class="card">' +
+        '<div class="card-header"><h3>Contratos</h3></div>' +
+        '<table><thead><tr><th>Código</th><th>Cliente</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Estado</th></tr></thead><tbody>' +
+        (contratos.length === 0 ? '<tr><td colspan="5" class="empty">Sin contratos registrados</td></tr>' :
+        contratos.map(function(c){
+          var estado = c.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-red">Inactivo</span>';
+          var inicio = c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString('es-ES') : '—';
+          var fin = c.fecha_fin ? new Date(c.fecha_fin).toLocaleDateString('es-ES') : '—';
+          return '<tr><td><strong>' + esc(c.codigo||'—') + '</strong></td>' +
+            '<td>' + esc(c.clientes_almacen?.razon_social||'—') + '</td>' +
+            '<td>' + inicio + '</td>' +
+            '<td>' + fin + '</td>' +
+            '<td>' + estado + '</td></tr>';
+        }).join('')) +
+        '</tbody></table></div>';
+  } catch(e) {
+    toast('Error al cargar contratos: ' + e.message, 'error');
+    document.getElementById('mainArea').innerHTML = '<div class="empty">Error cargando datos</div>';
+  }
+}
+
+async function renderOcupaciones() {
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando ocupaciones...</div>';
+  try {
+    var res = await sbFetch('/rest/v1/ocupaciones?order=semana.desc&limit=100');
+    var ocupaciones = await res.json();
+    if (!Array.isArray(ocupaciones)) ocupaciones = [];
+    
+    document.getElementById('mainArea').innerHTML =
+      '<div class="page-title">📦 Ocupaciones</div>' +
+      '<div class="page-sub">Registro de ocupación semanal</div>' +
+      '<div class="card">' +
+        '<div class="card-header"><h3>Últimos registros</h3></div>' +
+        '<table><thead><tr><th>Semana</th><th>M² Ocupados</th></tr></thead><tbody>' +
+        (ocupaciones.length === 0 ? '<tr><td colspan="2" class="empty">Sin registros de ocupación</td></tr>' :
+        ocupaciones.map(function(o){
+          return '<tr><td>' + (o.semana||'—') + '</td><td>' + fmtInt(o.mts2_ocupados||0) + ' m²</td></tr>';
+        }).join('')) +
+        '</tbody></table></div>';
+  } catch(e) {
+    toast('Error al cargar ocupaciones: ' + e.message, 'error');
+    document.getElementById('mainArea').innerHTML = '<div class="empty">Error cargando datos</div>';
+  }
+}
 
 window.addEventListener('load', function() {
   if (loadSession()) {
