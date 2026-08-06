@@ -46,7 +46,7 @@
 
     .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px;}
     .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px;}
-    .kpi-val{font-size:28px;font-weight:800;margin-bottom:4px;}
+    .kpi-val{font-size:26px;font-weight:800;margin-bottom:4px;}
     .kpi-lbl{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;}
 
     .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px;}
@@ -58,16 +58,6 @@
     td{padding:11px 16px;font-size:13px;border-bottom:1px solid var(--border);}
     tr:last-child td{border-bottom:none;}
     tr:hover td{background:rgba(255,255,255,.02);}
-
-    .modal-overlay{position:fixed;inset:0;background:rgba(10,15,35,.85);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
-    .modal-overlay.open{display:flex;}
-    .modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;}
-    .modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-    .modal-header h3{font-size:15px;font-weight:700;}
-    .modal-body{padding:24px;}
-    .modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;}
-    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
-    .form-field{margin-bottom:14px;}
 
     .badge{display:inline-block;padding:2px 9px;border-radius:5px;font-size:10px;font-weight:700;}
     .badge-green{background:rgba(34,197,94,.15);color:#22c55e;}
@@ -123,16 +113,6 @@
 
 <div class="session-status" id="sessionStatus">✓ Sesión activa</div>
 <div class="toast" id="toast"></div>
-<div class="modal-overlay" id="modalOverlay">
-  <div class="modal">
-    <div class="modal-header">
-      <h3 id="modalTitle">Modal</h3>
-      <button class="btn-ghost" style="padding:4px 10px;" onclick="closeModal()">✕</button>
-    </div>
-    <div class="modal-body" id="modalBody"></div>
-    <div class="modal-footer" id="modalFooter"></div>
-  </div>
-</div>
 
 <script>
 const SUPABASE_URL = 'https://zhmzjiozzdoutnqujbin.supabase.co';
@@ -163,9 +143,7 @@ function loadSession() {
 }
 
 function clearSession() {
-  _jwt = null;
-  _refreshToken = null;
-  _user = null;
+  _jwt = null; _refreshToken = null; _user = null;
   localStorage.removeItem('_jwt');
   localStorage.removeItem('_refreshToken');
   localStorage.removeItem('_user');
@@ -190,9 +168,7 @@ async function refreshToken() {
       console.log('✓ Token renovado automáticamente');
       return true;
     }
-  } catch(e) {
-    console.error('Error al renovar token:', e);
-  }
+  } catch(e) { console.error('Error al renovar token:', e); }
   return false;
 }
 
@@ -200,22 +176,14 @@ function startRefreshInterval() {
   if (_refreshInterval) clearInterval(_refreshInterval);
   _refreshInterval = setInterval(async function() {
     var ok = await refreshToken();
-    if (!ok) {
-      toast('Tu sesión expiró. Por favor inicia sesión nuevamente.', 'error');
-      logout();
-    }
+    if (!ok) { toast('Tu sesión expiró.', 'error'); logout(); }
   }, 50 * 60 * 1000);
 }
 
 function updateSessionStatus(isActive) {
   var el = document.getElementById('sessionStatus');
-  if (isActive) {
-    el.textContent = '✓ Sesión activa';
-    el.style.color = 'var(--green)';
-  } else {
-    el.textContent = '✗ Sin sesión';
-    el.style.color = 'var(--red)';
-  }
+  if (isActive) { el.textContent = '✓ Sesión activa'; el.style.color = 'var(--green)'; }
+  else { el.textContent = '✗ Sin sesión'; el.style.color = 'var(--red)'; }
 }
 
 function sbh(extra) {
@@ -229,27 +197,21 @@ async function sbFetch(path, opts, retryCount) {
   var options = Object.assign({}, opts);
   options.headers = sbh(opts && opts.headers);
   var res = await fetch(SUPABASE_URL + path, options);
-  
   if (res.status === 401 && retryCount < 2) {
     if (_isRefreshing) {
       await _refreshPromise;
       await new Promise(r => setTimeout(r, 500));
       return sbFetch(path, opts, retryCount + 1);
     }
-    
     _isRefreshing = true;
     _refreshPromise = refreshToken();
     var ok = await _refreshPromise;
     _isRefreshing = false;
-    
     if (ok) {
       await new Promise(r => setTimeout(r, 300));
       options.headers = sbh(opts && opts.headers);
       res = await fetch(SUPABASE_URL + path, options);
-    } else {
-      logout();
-      return res;
-    }
+    } else { logout(); return res; }
   }
   return res;
 }
@@ -268,16 +230,12 @@ async function login() {
     });
     var data = await res.json();
     if (!res.ok || !data.access_token) throw new Error(data.error_description || data.msg || 'Error de autenticación');
-    _jwt  = data.access_token;
-    _refreshToken = data.refresh_token;
-    _user = data.user;
-    
+    _jwt = data.access_token; _refreshToken = data.refresh_token; _user = data.user;
     saveSession();
     startRefreshInterval();
-    
     document.getElementById('loginOverlay').style.display = 'none';
     document.getElementById('shell').style.display = 'grid';
-    toast('¡Sesión iniciada correctamente!', 'success');
+    toast('¡Sesión iniciada!', 'success');
     navTo('dashboard');
   } catch(e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
 }
@@ -288,13 +246,13 @@ function logout() {
   document.getElementById('shell').style.display = 'none';
   document.getElementById('loginEmail').value = '';
   document.getElementById('loginPassword').value = '';
-  toast('Sesión cerrada', 'info');
 }
 
 function navTo(page) {
   document.querySelectorAll('.nav-item').forEach(function(el){ el.classList.remove('active'); });
-  var items = document.querySelectorAll('.nav-item');
-  items.forEach(function(el){ if (el.textContent.toLowerCase().includes(page) || el.getAttribute('onclick')&&el.getAttribute('onclick').includes(page)) el.classList.add('active'); });
+  document.querySelectorAll('.nav-item').forEach(function(el){ 
+    if (el.getAttribute('onclick') && el.getAttribute('onclick').includes("'" + page + "'")) el.classList.add('active'); 
+  });
   var pages = { dashboard: renderDashboard, bodegas: renderBodegas, clientes: renderClientes, contratos: renderContratos, ocupaciones: renderOcupaciones };
   if (pages[page]) pages[page]();
 }
@@ -306,18 +264,11 @@ function toast(msg, type) {
   setTimeout(function(){ el.className = 'toast'; }, 3000);
 }
 
-function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
-function openModal(title, bodyHtml, footerHtml) {
-  document.getElementById('modalTitle').textContent = title;
-  document.getElementById('modalBody').innerHTML = bodyHtml;
-  document.getElementById('modalFooter').innerHTML = footerHtml || '';
-  document.getElementById('modalOverlay').classList.add('open');
-}
-
 function fmt(n) { return (n||0).toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 function fmtInt(n) { return (n||0).toLocaleString('es-ES'); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// ══════ DASHBOARD ══════
 async function renderDashboard() {
   document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando dashboard...</div>';
   try {
@@ -325,19 +276,39 @@ async function renderDashboard() {
       sbFetch('/rest/v1/bodegas?select=*&order=nombre.asc'),
       sbFetch('/rest/v1/contrato_bodegas?select=*,contratos(activo)&order=id.asc')
     ]);
-    
     var bodegas = await resBod.json();
     var contratoBodegas = await resContBod.json();
-    
     if (!Array.isArray(bodegas)) bodegas = [];
     if (!Array.isArray(contratoBodegas)) contratoBodegas = [];
 
-    var totalMts2 = bodegas.reduce(function(a,b){ return a+(b.mts2_totales||0); }, 0);
+    // Mapa de bodegas por id
+    var bodMap = {};
+    bodegas.forEach(function(b){ bodMap[b.id] = b; });
+
+    // Total M² de todos los almacenes
+    var totalMts2 = bodegas.reduce(function(a,b){ return a+parseFloat(b.mts2_totales||0); }, 0);
+    
+    // Solo contratos activos
     var activosCB = contratoBodegas.filter(function(r){ return r.contratos && r.contratos.activo; });
-    var mts2Utilizados = activosCB.reduce(function(a,r){ return a+(r.mts2||0); }, 0);
+    
+    // M² utilizados
+    var mts2Utilizados = activosCB.reduce(function(a,r){ return a+parseFloat(r.mts2||0); }, 0);
+    
+    // M² disponibles
     var mts2Disponibles = totalMts2 - mts2Utilizados;
-    var valorAlquilerTotal = activosCB.reduce(function(a,r){ return a+((r.mts2||0)*(r.valor_m2||0)); }, 0);
-    var valorVentaTotal = activosCB.reduce(function(a,r){ return a+((r.mts2||0)*(r.valor_venta||r.valor_m2||0)); }, 0);
+    
+    // Valor de Alquiler (COSTO - lo que paga EFI por los m² de bodegas ocupados)
+    var valorAlquilerCosto = activosCB.reduce(function(a,r){ 
+      var bod = bodMap[r.bodega_id];
+      var precioBodega = bod ? parseFloat(bod.valor_m2_alquiler||0) : 0;
+      return a + (parseFloat(r.mts2||0) * precioBodega); 
+    }, 0);
+    
+    // Valor de Venta (INGRESO - lo que EFI cobra a clientes)
+    var valorVentaIngreso = activosCB.reduce(function(a,r){ 
+      return a + (parseFloat(r.mts2||0) * parseFloat(r.valor_m2||0)); 
+    }, 0);
+    
     var ocupPct = totalMts2 > 0 ? Math.round((mts2Utilizados/totalMts2)*100) : 0;
 
     document.getElementById('mainArea').innerHTML =
@@ -346,19 +317,26 @@ async function renderDashboard() {
       '<div class="kpi-grid">' +
         '<div class="kpi"><div class="kpi-val">' + fmtInt(totalMts2) + '</div><div class="kpi-lbl">Total M²</div></div>' +
         '<div class="kpi"><div class="kpi-val">' + fmtInt(mts2Utilizados) + '</div><div class="kpi-lbl">M² Utilizados</div></div>' +
-        '<div class="kpi"><div class="kpi-val">$' + fmt(valorAlquilerTotal) + '</div><div class="kpi-lbl">Valor Alquiler</div></div>' +
-        '<div class="kpi"><div class="kpi-val">$' + fmt(valorVentaTotal) + '</div><div class="kpi-lbl">Valor Venta</div></div>' +
         '<div class="kpi"><div class="kpi-val">' + fmtInt(mts2Disponibles) + '</div><div class="kpi-lbl">M² Disponibles</div></div>' +
+        '<div class="kpi"><div class="kpi-val" style="color:var(--red);">$' + fmt(valorAlquilerCosto) + '</div><div class="kpi-lbl">Valor Alquiler (Costo)</div></div>' +
+        '<div class="kpi"><div class="kpi-val" style="color:var(--green);">$' + fmt(valorVentaIngreso) + '</div><div class="kpi-lbl">Valor Venta (Ingreso)</div></div>' +
         '<div class="kpi"><div class="kpi-val">' + ocupPct + '%</div><div class="kpi-lbl">Ocupación</div></div>' +
       '</div>' +
       '<div class="card">' +
         '<div class="card-header"><h3>Ocupación por Bodega</h3></div>' +
-        '<table><thead><tr><th>Bodega</th><th>Total M²</th><th>Utilizados</th><th>Disponibles</th><th>%</th></tr></thead><tbody>' +
+        '<table><thead><tr><th>Bodega</th><th>Ubicación</th><th>Total M²</th><th>Utilizados</th><th>Disponibles</th><th>Valor/m²</th><th>%</th></tr></thead><tbody>' +
         bodegas.map(function(b){
-          var utilizados = activosCB.filter(function(r){ return r.bodega_id===b.id; }).reduce(function(a,r){ return a+(r.mts2||0); }, 0);
-          var disponibles = (b.mts2_totales||0) - utilizados;
-          var pct = (b.mts2_totales||0) > 0 ? Math.round((utilizados/(b.mts2_totales||0))*100) : 0;
-          return '<tr><td><strong>' + esc(b.nombre) + '</strong></td><td>' + fmtInt(b.mts2_totales||0) + ' m²</td><td>' + fmtInt(utilizados) + ' m²</td><td>' + fmtInt(disponibles) + ' m²</td><td>' + pct + '%</td></tr>';
+          var utilizados = activosCB.filter(function(r){ return r.bodega_id===b.id; }).reduce(function(a,r){ return a+parseFloat(r.mts2||0); }, 0);
+          var totalB = parseFloat(b.mts2_totales||0);
+          var disponibles = totalB - utilizados;
+          var pct = totalB > 0 ? Math.round((utilizados/totalB)*100) : 0;
+          return '<tr><td><strong>' + esc(b.nombre) + '</strong></td>' +
+            '<td>' + esc(b.ubicacion||'—') + '</td>' +
+            '<td>' + fmtInt(totalB) + ' m²</td>' +
+            '<td>' + fmtInt(utilizados) + ' m²</td>' +
+            '<td>' + fmtInt(disponibles) + ' m²</td>' +
+            '<td>$' + fmt(b.valor_m2_alquiler||0) + '</td>' +
+            '<td>' + pct + '%</td></tr>';
         }).join('') +
         '</tbody></table></div>';
   } catch(e) {
@@ -367,6 +345,7 @@ async function renderDashboard() {
   }
 }
 
+// ══════ BODEGAS ══════
 async function renderBodegas() {
   document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando bodegas...</div>';
   try {
@@ -376,26 +355,27 @@ async function renderBodegas() {
     
     document.getElementById('mainArea').innerHTML =
       '<div class="page-title">🏭 Bodegas</div>' +
-      '<div class="page-sub">Listado de almacenes disponibles</div>' +
+      '<div class="page-sub">Listado de almacenes disponibles (' + bodegas.length + ')</div>' +
       '<div class="card">' +
         '<div class="card-header"><h3>Bodegas</h3></div>' +
-        '<table><thead><tr><th>Nombre</th><th>Código</th><th>Total M²</th><th>Tarifa Base</th><th>Costo Personal</th><th>Dirección</th></tr></thead><tbody>' +
+        '<table><thead><tr><th>Nombre</th><th>Ubicación</th><th>Total M²</th><th>Disponibles M²</th><th>% Pasillos</th><th>Valor/m²</th></tr></thead><tbody>' +
         (bodegas.length === 0 ? '<tr><td colspan="6" class="empty">Sin bodegas registradas</td></tr>' :
         bodegas.map(function(b){
           return '<tr><td><strong>' + esc(b.nombre||'—') + '</strong></td>' +
-            '<td>' + esc(b.codigo||'—') + '</td>' +
+            '<td>' + esc(b.ubicacion||'—') + '</td>' +
             '<td>' + fmtInt(b.mts2_totales||0) + ' m²</td>' +
-            '<td>$' + fmt(b.tarifa_base_m2||0) + '</td>' +
-            '<td>$' + fmt(b.costo_personal||0) + '</td>' +
-            '<td>' + esc(b.direccion||'—') + '</td></tr>';
+            '<td>' + fmtInt(b.mts2_disponibles||0) + ' m²</td>' +
+            '<td>' + fmt(b.pct_pasillos||0) + '%</td>' +
+            '<td>$' + fmt(b.valor_m2_alquiler||0) + '</td></tr>';
         }).join('')) +
         '</tbody></table></div>';
   } catch(e) {
-    toast('Error al cargar bodegas: ' + e.message, 'error');
+    toast('Error: ' + e.message, 'error');
     document.getElementById('mainArea').innerHTML = '<div class="empty">Error cargando datos</div>';
   }
 }
 
+// ══════ CLIENTES ══════
 async function renderClientes() {
   document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando clientes...</div>';
   try {
@@ -405,77 +385,104 @@ async function renderClientes() {
     
     document.getElementById('mainArea').innerHTML =
       '<div class="page-title">👥 Clientes</div>' +
-      '<div class="page-sub">Listado de clientes activos e inactivos</div>' +
+      '<div class="page-sub">Listado de clientes (' + clientes.length + ')</div>' +
       '<div class="card">' +
         '<div class="card-header"><h3>Clientes</h3></div>' +
-        '<table><thead><tr><th>Razón Social</th><th>Contacto</th><th>Teléfono</th><th>Email</th><th>Estado</th></tr></thead><tbody>' +
+        '<table><thead><tr><th>Código</th><th>Razón Social</th><th>NIT</th><th>Dirección</th><th>Correo</th></tr></thead><tbody>' +
         (clientes.length === 0 ? '<tr><td colspan="5" class="empty">Sin clientes registrados</td></tr>' :
         clientes.map(function(c){
-          var estado = c.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-red">Inactivo</span>';
-          return '<tr><td><strong>' + esc(c.razon_social||'—') + '</strong></td>' +
-            '<td>' + esc(c.nombre_contacto||'—') + '</td>' +
-            '<td>' + esc(c.telefono||'—') + '</td>' +
-            '<td>' + esc(c.email||'—') + '</td>' +
-            '<td>' + estado + '</td></tr>';
+          return '<tr><td><strong>' + esc(c.codigo||'—') + '</strong></td>' +
+            '<td>' + esc(c.razon_social||'—') + '</td>' +
+            '<td>' + esc(c.nit||'—') + '</td>' +
+            '<td>' + esc(c.direccion||'—') + '</td>' +
+            '<td>' + esc(c.correo||'—') + '</td></tr>';
         }).join('')) +
         '</tbody></table></div>';
   } catch(e) {
-    toast('Error al cargar clientes: ' + e.message, 'error');
+    toast('Error: ' + e.message, 'error');
     document.getElementById('mainArea').innerHTML = '<div class="empty">Error cargando datos</div>';
   }
 }
 
+// ══════ CONTRATOS ══════
 async function renderContratos() {
   document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando contratos...</div>';
   try {
-    var res = await sbFetch('/rest/v1/contratos?select=*,clientes_almacen(razon_social)&order=codigo.asc');
-    var contratos = await res.json();
+    var [resCon, resCB] = await Promise.all([
+      sbFetch('/rest/v1/contratos?select=*,clientes_almacen(razon_social,codigo)&order=codigo.asc'),
+      sbFetch('/rest/v1/contrato_bodegas?select=*,bodegas(nombre)&order=id.asc')
+    ]);
+    var contratos = await resCon.json();
+    var contBod = await resCB.json();
     if (!Array.isArray(contratos)) contratos = [];
+    if (!Array.isArray(contBod)) contBod = [];
+    
+    // Agrupar bodegas por contrato
+    var bodPorContrato = {};
+    contBod.forEach(function(cb){
+      if (!bodPorContrato[cb.contrato_id]) bodPorContrato[cb.contrato_id] = [];
+      bodPorContrato[cb.contrato_id].push(cb);
+    });
     
     document.getElementById('mainArea').innerHTML =
       '<div class="page-title">📄 Contratos</div>' +
-      '<div class="page-sub">Listado de contratos y arrendamientos</div>' +
+      '<div class="page-sub">Listado de contratos (' + contratos.length + ')</div>' +
       '<div class="card">' +
         '<div class="card-header"><h3>Contratos</h3></div>' +
-        '<table><thead><tr><th>Código</th><th>Cliente</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Estado</th></tr></thead><tbody>' +
-        (contratos.length === 0 ? '<tr><td colspan="5" class="empty">Sin contratos registrados</td></tr>' :
+        '<table><thead><tr><th>Código</th><th>Cliente</th><th>Bodegas</th><th>Total M²</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Renta/mes</th><th>Estado</th></tr></thead><tbody>' +
+        (contratos.length === 0 ? '<tr><td colspan="8" class="empty">Sin contratos</td></tr>' :
         contratos.map(function(c){
+          var lineas = bodPorContrato[c.id] || [];
+          var totalMts = lineas.reduce(function(a,l){ return a+parseFloat(l.mts2||0); }, 0);
+          var rentaMes = lineas.reduce(function(a,l){ return a+(parseFloat(l.mts2||0)*parseFloat(l.valor_m2||0)); }, 0);
+          var nombresBod = lineas.map(function(l){ return l.bodegas && l.bodegas.nombre; }).filter(Boolean).join(', ');
           var estado = c.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-red">Inactivo</span>';
           var inicio = c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString('es-ES') : '—';
           var fin = c.fecha_fin ? new Date(c.fecha_fin).toLocaleDateString('es-ES') : '—';
+          var cliente = c.clientes_almacen ? c.clientes_almacen.razon_social : '—';
           return '<tr><td><strong>' + esc(c.codigo||'—') + '</strong></td>' +
-            '<td>' + esc(c.clientes_almacen?.razon_social||'—') + '</td>' +
+            '<td>' + esc(cliente) + '</td>' +
+            '<td>' + esc(nombresBod||'—') + '</td>' +
+            '<td>' + fmtInt(totalMts) + ' m²</td>' +
             '<td>' + inicio + '</td>' +
             '<td>' + fin + '</td>' +
+            '<td>$' + fmt(rentaMes) + '</td>' +
             '<td>' + estado + '</td></tr>';
         }).join('')) +
         '</tbody></table></div>';
   } catch(e) {
-    toast('Error al cargar contratos: ' + e.message, 'error');
+    toast('Error: ' + e.message, 'error');
     document.getElementById('mainArea').innerHTML = '<div class="empty">Error cargando datos</div>';
   }
 }
 
+// ══════ OCUPACIONES ══════
 async function renderOcupaciones() {
   document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando ocupaciones...</div>';
   try {
-    var res = await sbFetch('/rest/v1/ocupaciones?order=semana.desc&limit=100');
+    var res = await sbFetch('/rest/v1/ocupaciones?select=*,contratos(codigo,clientes_almacen(razon_social))&order=semana.desc&limit=200');
     var ocupaciones = await res.json();
     if (!Array.isArray(ocupaciones)) ocupaciones = [];
     
     document.getElementById('mainArea').innerHTML =
       '<div class="page-title">📦 Ocupaciones</div>' +
-      '<div class="page-sub">Registro de ocupación semanal</div>' +
+      '<div class="page-sub">Registro semanal de ocupación (' + ocupaciones.length + ' registros)</div>' +
       '<div class="card">' +
         '<div class="card-header"><h3>Últimos registros</h3></div>' +
-        '<table><thead><tr><th>Semana</th><th>M² Ocupados</th></tr></thead><tbody>' +
-        (ocupaciones.length === 0 ? '<tr><td colspan="2" class="empty">Sin registros de ocupación</td></tr>' :
+        '<table><thead><tr><th>Semana</th><th>Contrato</th><th>Cliente</th><th>M² Ocupados</th></tr></thead><tbody>' +
+        (ocupaciones.length === 0 ? '<tr><td colspan="4" class="empty">Sin registros de ocupación</td></tr>' :
         ocupaciones.map(function(o){
-          return '<tr><td>' + (o.semana||'—') + '</td><td>' + fmtInt(o.mts2_ocupados||0) + ' m²</td></tr>';
+          var cont = o.contratos || {};
+          var cli = cont.clientes_almacen ? cont.clientes_almacen.razon_social : '—';
+          var semana = o.semana ? new Date(o.semana).toLocaleDateString('es-ES') : '—';
+          return '<tr><td>' + semana + '</td>' +
+            '<td><strong>' + esc(cont.codigo||'—') + '</strong></td>' +
+            '<td>' + esc(cli) + '</td>' +
+            '<td>' + fmtInt(o.mts2_ocupados||0) + ' m²</td></tr>';
         }).join('')) +
         '</tbody></table></div>';
   } catch(e) {
-    toast('Error al cargar ocupaciones: ' + e.message, 'error');
+    toast('Error: ' + e.message, 'error');
     document.getElementById('mainArea').innerHTML = '<div class="empty">Error cargando datos</div>';
   }
 }
