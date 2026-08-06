@@ -155,9 +155,11 @@ var _jwt = null;
 var _refreshToken = null;
 var _user = null;
 var _refreshInterval = null;
+var _isRefreshing = false;
+var _refreshPromise = null;
 
 // ════════════════════════════════════════════════════════════════
-// SESSION MANAGEMENT (NUEVO)
+// SESSION MANAGEMENT
 // ════════════════════════════════════════════════════════════════
 
 function saveSession() {
@@ -215,7 +217,6 @@ async function refreshToken() {
 }
 
 function startRefreshInterval() {
-  // Renovar cada 50 minutos (el token expira en 60)
   if (_refreshInterval) clearInterval(_refreshInterval);
   _refreshInterval = setInterval(async function() {
     var ok = await refreshToken();
@@ -247,21 +248,31 @@ function sbh(extra) {
   return h;
 }
 
-async function sbFetch(path, opts) {
+async function sbFetch(path, opts, retryCount) {
+  retryCount = retryCount || 0;
   var options = Object.assign({}, opts);
   options.headers = sbh(opts && opts.headers);
   var res = await fetch(SUPABASE_URL + path, options);
   
-  // Si es 401 (token expirado), intentar renovar
-  if (res.status === 401) {
-    var ok = await refreshToken();
+  if (res.status === 401 && retryCount < 2) {
+    if (_isRefreshing) {
+      await _refreshPromise;
+      await new Promise(r => setTimeout(r, 500));
+      return sbFetch(path, opts, retryCount + 1);
+    }
+    
+    _isRefreshing = true;
+    _refreshPromise = refreshToken();
+    var ok = await _refreshPromise;
+    _isRefreshing = false;
+    
     if (ok) {
-      // Reintentar con token renovado
+      await new Promise(r => setTimeout(r, 300));
       options.headers = sbh(opts && opts.headers);
       res = await fetch(SUPABASE_URL + path, options);
     } else {
-      // No se pudo renovar, logout
       logout();
+      return res;
     }
   }
   return res;
@@ -397,7 +408,7 @@ async function renderDashboard() {
   }
 }
 
-// Placeholder para otras funciones
+// Placeholders para otras funciones
 async function renderBodegas() { document.getElementById('mainArea').innerHTML = '<div class="page-title">🏭 Bodegas</div><div class="loading">En desarrollo...</div>'; }
 async function renderClientes() { document.getElementById('mainArea').innerHTML = '<div class="page-title">👥 Clientes</div><div class="loading">En desarrollo...</div>'; }
 async function renderContratos() { document.getElementById('mainArea').innerHTML = '<div class="page-title">📄 Contratos</div><div class="loading">En desarrollo...</div>'; }
@@ -409,7 +420,6 @@ async function renderOcupaciones() { document.getElementById('mainArea').innerHT
 
 window.addEventListener('load', function() {
   if (loadSession()) {
-    // Sesión recuperada
     document.getElementById('loginOverlay').style.display = 'none';
     document.getElementById('shell').style.display = 'grid';
     startRefreshInterval();
