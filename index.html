@@ -375,20 +375,38 @@ async function confirmar(msg) {
 async function renderDashboard() {
   document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando dashboard...</div>';
   try {
-    var [rB, rCB, rCli, rCon] = await Promise.all([
-      sbFetch('/rest/v1/bodegas?select=*&order=nombre.asc'),
-      sbFetch('/rest/v1/contrato_bodegas?select=*,contratos(activo)&order=id.asc'),
-      sbFetch('/rest/v1/clientes_almacen?select=id&limit=1', {headers:{'Prefer':'count=exact','Range':'0-0'}}),
-      sbFetch('/rest/v1/contratos?select=id&activo=eq.true&limit=1', {headers:{'Prefer':'count=exact','Range':'0-0'}})
+    var [rB, rCB, rC, rCli] = await Promise.all([
+      sbFetch('/rest/v1/bodegas?select=*&order=nombre.asc&limit=10000'),
+      sbFetch('/rest/v1/contrato_bodegas?select=*&limit=10000'),
+      sbFetch('/rest/v1/contratos?select=id,codigo,activo&limit=10000'),
+      sbFetch('/rest/v1/clientes_almacen?select=id&limit=1', {headers:{'Prefer':'count=exact','Range':'0-0'}})
     ]);
     var bodegas = await rB.json(); if (!Array.isArray(bodegas)) bodegas=[];
     var cb = await rCB.json(); if (!Array.isArray(cb)) cb=[];
+    var contratos = await rC.json(); if (!Array.isArray(contratos)) contratos=[];
     var cliHdr = rCli.headers.get('Content-Range'); var totalCli = cliHdr ? parseInt(cliHdr.split('/')[1])||0 : 0;
-    var conHdr = rCon.headers.get('Content-Range'); var totalCon = conHdr ? parseInt(conHdr.split('/')[1])||0 : 0;
 
+    // Mapa contratos por id (acepta activo=true o null)
+    var contMap = {};
+    contratos.forEach(function(c){ contMap[c.id] = c; });
+    var totalCon = contratos.filter(function(c){ return c.activo !== false; }).length;
+
+    // Mapa bodegas por id
     var bodMap = {}; bodegas.forEach(function(b){ bodMap[b.id]=b; });
+
+    // Filtrar contrato_bodegas: contrato existe y activo !== false
+    var activosCB = cb.filter(function(r){
+      var c = contMap[r.contrato_id];
+      return c && c.activo !== false;
+    });
+
+    console.log('[Dashboard] Bodegas:', bodegas.length, '| Contratos:', contratos.length, '| CB total:', cb.length, '| CB activos:', activosCB.length);
+    bodegas.forEach(function(b){
+      var util = activosCB.filter(function(r){ return r.bodega_id===b.id; }).reduce(function(a,r){ return a+parseFloat(r.mts2||0); }, 0);
+      console.log('  '+b.nombre+' — Total: '+b.mts2_totales+' | Utilizados: '+util+' | Disponibles: '+((b.mts2_totales||0)-util));
+    });
+
     var totalMts2 = bodegas.reduce(function(a,b){ return a+parseFloat(b.mts2_totales||0); }, 0);
-    var activosCB = cb.filter(function(r){ return r.contratos && r.contratos.activo; });
     var mts2Util = activosCB.reduce(function(a,r){ return a+parseFloat(r.mts2||0); }, 0);
     var mts2Disp = totalMts2 - mts2Util;
     var valAlq = activosCB.reduce(function(a,r){ var b=bodMap[r.bodega_id]; return a+(parseFloat(r.mts2||0)*(b?parseFloat(b.valor_m2_alquiler||0):0)); }, 0);
