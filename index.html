@@ -108,7 +108,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(5,10,20,.85);backdrop-filter:blur(6px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
 .modal-overlay.open{display:flex;}
-.modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;box-shadow:0 30px 80px rgba(0,0,0,.5);}
+.modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;width:100%;max-width:900px;max-height:92vh;overflow-y:auto;box-shadow:0 30px 80px rgba(0,0,0,.5);}
 .modal-header{padding:22px 26px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
 .modal-header h3{font-size:16px;font-weight:700;}
 .modal-body{padding:26px;}
@@ -179,6 +179,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <div class="tab" data-page="clientes" onclick="navTo('clientes')">👥 Clientes</div>
     <div class="tab" data-page="contratos" onclick="navTo('contratos')">📄 Contratos</div>
     <div class="tab" data-page="ocupaciones" onclick="navTo('ocupaciones')">📦 Ocupaciones</div>
+    <div class="tab" data-page="proyeccion" onclick="navTo('proyeccion')">📈 Proyección</div>
   </div>
 
   <div class="main" id="mainArea"></div>
@@ -341,7 +342,7 @@ function navTo(page) {
   document.querySelectorAll('.tab').forEach(function(t){ 
     t.classList.toggle('active', t.getAttribute('data-page')===page); 
   });
-  var pages = { dashboard:renderDashboard, bodegas:renderBodegas, clientes:renderClientes, contratos:renderContratos, ocupaciones:renderOcupaciones };
+  var pages = { dashboard:renderDashboard, bodegas:renderBodegas, clientes:renderClientes, contratos:renderContratos, ocupaciones:renderOcupaciones, proyeccion:renderProyeccion };
   if (pages[page]) pages[page]();
 }
 function toast(msg, type) {
@@ -438,7 +439,7 @@ async function renderDashboard() {
           var disp = tot - util;
           var pct = tot > 0 ? Math.round((util/tot)*100) : 0;
           var badge = pct>=90?'red':pct>=60?'yellow':'green';
-          return '<tr><td><strong>'+esc(b.nombre)+'</strong></td>'+
+          return '<tr style="cursor:pointer;" onclick="verDetalleBodega('+b.id+')" title="Ver contratos de esta bodega"><td><strong>'+esc(b.nombre)+'</strong></td>'+
             '<td>'+esc(b.ubicacion||'—')+'</td>'+
             '<td>'+fmtInt(tot)+' m²</td>'+
             '<td>'+fmtInt(util)+' m²</td>'+
@@ -870,6 +871,268 @@ async function eliminarOcupacion(id) {
   var res = await sbFetch('/rest/v1/ocupaciones?id=eq.'+id, {method:'DELETE'});
   if (!res.ok) { toast('Error al eliminar','error'); return; }
   toast('Ocupación eliminada'); renderOcupaciones();
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// DETALLE DE BODEGA (auditoría)
+// ═══════════════════════════════════════════════════════════════
+async function verDetalleBodega(bodegaId) {
+  try {
+    var [rB, rCB, rC, rCli] = await Promise.all([
+      sbFetch('/rest/v1/bodegas?id=eq.'+bodegaId),
+      sbFetch('/rest/v1/contrato_bodegas?bodega_id=eq.'+bodegaId+'&limit=1000'),
+      sbFetch('/rest/v1/contratos?select=id,codigo,activo,cliente_id,fecha_inicio,fecha_fin&limit=10000'),
+      sbFetch('/rest/v1/clientes_almacen?select=id,razon_social&limit=10000')
+    ]);
+    var bod = (await rB.json())[0] || {};
+    var cbs = await rCB.json(); if (!Array.isArray(cbs)) cbs=[];
+    var contratos = await rC.json(); if (!Array.isArray(contratos)) contratos=[];
+    var clientes = await rCli.json(); if (!Array.isArray(clientes)) clientes=[];
+    var contMap = {}; contratos.forEach(function(c){ contMap[c.id]=c; });
+    var cliMap = {}; clientes.forEach(function(c){ cliMap[c.id]=c; });
+    var totalOcup = cbs.reduce(function(a,r){ 
+      var c = contMap[r.contrato_id];
+      return c && c.activo !== false ? a+parseFloat(r.mts2||0) : a;
+    }, 0);
+    var tot = parseFloat(bod.mts2_totales||0);
+    var body = '<div style="margin-bottom:16px;padding:14px;background:var(--bg-elev);border-radius:10px;">'+
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Capacidad total</div>'+
+      '<div style="font-size:20px;font-weight:700;">'+fmtInt(tot)+' m²</div>'+
+      '<div style="font-size:13px;color:var(--text2);margin:10px 0 4px;">Ocupación real (contratos activos o sin estado)</div>'+
+      '<div style="font-size:20px;font-weight:700;color:'+(totalOcup>tot?'var(--red)':'var(--green)')+';">'+fmtInt(totalOcup)+' m²</div>'+
+      (totalOcup>tot?'<div style="color:var(--red);font-size:12px;margin-top:6px;">⚠️ SOBREPASADO por '+fmtInt(totalOcup-tot)+' m²</div>':'')+
+      '</div>'+
+      '<h4 style="margin-bottom:10px;font-size:13px;">Contratos con m² asignados en esta bodega ('+cbs.length+')</h4>'+
+      '<div class="table-wrap"><table><thead><tr><th>Contrato</th><th>Cliente</th><th>Estado</th><th>Vigencia</th><th>M²</th><th>$/m²</th><th>Total</th></tr></thead><tbody>'+
+      (cbs.length===0?'<tr><td colspan="7" class="empty">Sin registros</td></tr>':
+      cbs.map(function(r){
+        var c = contMap[r.contrato_id] || {};
+        var cli = cliMap[c.cliente_id] || {};
+        var estCls = c.activo===true?'badge-green':c.activo===false?'badge-red':'badge-yellow';
+        var estTxt = c.activo===true?'Activo':c.activo===false?'Inactivo':'Sin estado';
+        var ini = c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString('es-ES') : '—';
+        var fin = c.fecha_fin ? new Date(c.fecha_fin).toLocaleDateString('es-ES') : '—';
+        var subT = parseFloat(r.mts2||0) * parseFloat(r.valor_m2||0);
+        return '<tr><td><strong>'+esc(c.codigo||'ID '+r.contrato_id)+'</strong></td>'+
+          '<td>'+esc(cli.razon_social||'—')+'</td>'+
+          '<td><span class="badge '+estCls+'">'+estTxt+'</span></td>'+
+          '<td style="font-size:11px;">'+ini+' → '+fin+'</td>'+
+          '<td>'+fmt(r.mts2||0)+' m²</td>'+
+          '<td>$'+fmt(r.valor_m2||0)+'</td>'+
+          '<td>$'+fmt(subT)+'</td></tr>';
+      }).join(''))+
+      '</tbody></table></div>';
+    openModal('🏭 '+bod.nombre+' — Detalle de ocupación', body, '<button class="btn-ghost" onclick="closeModal()">Cerrar</button>');
+  } catch(e) {
+    toast('Error: '+e.message,'error');
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// PROYECCIÓN
+// ═══════════════════════════════════════════════════════════════
+async function renderProyeccion() {
+  if (!window._proy) {
+    window._proy = { anio: new Date().getFullYear(), vista: 'consolidado', escenario: 'realista' };
+  }
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando proyección...</div>';
+  try {
+    var [rB, rCB, rC, rCli] = await Promise.all([
+      sbFetch('/rest/v1/bodegas?select=*&limit=10000'),
+      sbFetch('/rest/v1/contrato_bodegas?select=*&limit=10000'),
+      sbFetch('/rest/v1/contratos?select=*&limit=10000'),
+      sbFetch('/rest/v1/clientes_almacen?select=*&limit=10000')
+    ]);
+    var bodegas = await rB.json(); if (!Array.isArray(bodegas)) bodegas=[];
+    var cb = await rCB.json(); if (!Array.isArray(cb)) cb=[];
+    var contratos = await rC.json(); if (!Array.isArray(contratos)) contratos=[];
+    var clientes = await rCli.json(); if (!Array.isArray(clientes)) clientes=[];
+    var bodMap = {}; bodegas.forEach(function(b){ bodMap[b.id]=b; });
+    var contMap = {}; contratos.forEach(function(c){ contMap[c.id]=c; });
+
+    var anio = window._proy.anio;
+    var vista = window._proy.vista;
+    var escn = window._proy.escenario;
+    var meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    var anioActual = new Date().getFullYear();
+
+    function vigenteEnMes(r, m) {
+      var c = contMap[r.contrato_id];
+      if (!c) return false;
+      if (c.activo === false) return false;
+      var primerDia = new Date(anio, m, 1);
+      var ultimoDia = new Date(anio, m+1, 0);
+      var ini = c.fecha_inicio ? new Date(c.fecha_inicio) : null;
+      var fin = c.fecha_fin ? new Date(c.fecha_fin) : null;
+      if (escn === 'realista') {
+        if (ini && ini > ultimoDia) return false;
+        if (fin && fin < primerDia) return false;
+        return true;
+      } else {
+        if (ini && ini > ultimoDia) return false;
+        return true;
+      }
+    }
+
+    var proy = [];
+    for (var m = 0; m < 12; m++) {
+      var vigentes = cb.filter(function(r){ return vigenteEnMes(r, m); });
+      var mts2 = vigentes.reduce(function(a,r){ return a+parseFloat(r.mts2||0); }, 0);
+      var ing = vigentes.reduce(function(a,r){ return a+(parseFloat(r.mts2||0)*parseFloat(r.valor_m2||0)); }, 0);
+      var cos = vigentes.reduce(function(a,r){ var b=bodMap[r.bodega_id]; return a+(parseFloat(r.mts2||0)*(b?parseFloat(b.valor_m2_alquiler||0):0)); }, 0);
+      var setC = {}; vigentes.forEach(function(r){ setC[r.contrato_id]=true; });
+      proy.push({ mes:m, mts2:mts2, contratos:Object.keys(setC).length, ingresos:ing, costos:cos, utilidad:ing-cos });
+    }
+
+    var totalMts2 = bodegas.reduce(function(a,b){ return a+parseFloat(b.mts2_totales||0); }, 0);
+    var totIng = proy.reduce(function(a,p){ return a+p.ingresos; }, 0);
+    var totCos = proy.reduce(function(a,p){ return a+p.costos; }, 0);
+    var totUti = totIng - totCos;
+    var sumMts2 = proy.reduce(function(a,p){ return a+p.mts2; },0);
+    var promOcup = totalMts2 > 0 ? Math.round((sumMts2/12/totalMts2)*100) : 0;
+
+    var html = '<div class="page-header">'+
+      '<div><div class="page-title">📈 Proyección</div>'+
+      '<div class="page-sub">Ocupación e ingresos proyectados por mes</div></div>'+
+      '</div>'+
+      '<div class="card"><div class="card-header" style="gap:14px;flex-wrap:wrap;">'+
+        '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:end;width:100%;">'+
+          '<div style="min-width:160px;"><label>Año</label><select id="pAnio" onchange="_proyChg()">'+
+            '<option value="'+anioActual+'"'+(anio===anioActual?' selected':'')+'>'+anioActual+' (actual)</option>'+
+            '<option value="'+(anioActual+1)+'"'+(anio===anioActual+1?' selected':'')+'>'+(anioActual+1)+' (próximo)</option>'+
+            '<option value="'+(anioActual+2)+'"'+(anio===anioActual+2?' selected':'')+'>'+(anioActual+2)+'</option>'+
+          '</select></div>'+
+          '<div style="min-width:180px;"><label>Vista</label><select id="pVista" onchange="_proyChg()">'+
+            '<option value="consolidado"'+(vista==='consolidado'?' selected':'')+'>Consolidado</option>'+
+            '<option value="bodega"'+(vista==='bodega'?' selected':'')+'>Por Bodega</option>'+
+            '<option value="cliente"'+(vista==='cliente'?' selected':'')+'>Por Cliente</option>'+
+          '</select></div>'+
+          '<div style="min-width:220px;"><label>Escenario</label><select id="pEsc" onchange="_proyChg()">'+
+            '<option value="realista"'+(escn==='realista'?' selected':'')+'>Realista (respeta vencimientos)</option>'+
+            '<option value="optimista"'+(escn==='optimista'?' selected':'')+'>Optimista (renovación asumida)</option>'+
+          '</select></div>'+
+        '</div>'+
+      '</div></div>'+
+      '<div class="kpi-grid">'+
+        '<div class="kpi"><div class="kpi-icon">💰</div><div class="kpi-val">$'+fmt(totIng)+'</div><div class="kpi-lbl">Ingresos '+anio+'</div></div>'+
+        '<div class="kpi red"><div class="kpi-icon">💸</div><div class="kpi-val">$'+fmt(totCos)+'</div><div class="kpi-lbl">Costo '+anio+'</div></div>'+
+        '<div class="kpi yellow"><div class="kpi-icon">📈</div><div class="kpi-val">$'+fmt(totUti)+'</div><div class="kpi-lbl">Utilidad '+anio+'</div></div>'+
+        '<div class="kpi blue"><div class="kpi-icon">📐</div><div class="kpi-val">'+promOcup+'%</div><div class="kpi-lbl">Ocupación promedio</div></div>'+
+      '</div>';
+
+    html += _proyGrafico(proy, meses);
+
+    if (vista === 'consolidado') {
+      html += '<div class="card">'+
+        '<div class="card-header"><h3>📅 Proyección Mensual '+anio+'</h3><span class="count">Escenario: '+(escn==='realista'?'Realista':'Optimista')+'</span></div>'+
+        '<div class="table-wrap"><table><thead><tr><th>Mes</th><th>M² Ocupados</th><th>Contratos</th><th>Ingresos $</th><th>Costo $</th><th>Utilidad $</th><th>Ocupación</th></tr></thead><tbody>'+
+        proy.map(function(p){
+          var pct = totalMts2>0 ? Math.round((p.mts2/totalMts2)*100) : 0;
+          var badge = pct>=90?'red':pct>=60?'yellow':'green';
+          return '<tr><td><strong>'+meses[p.mes]+' '+anio+'</strong></td>'+
+            '<td>'+fmtInt(p.mts2)+' m²</td>'+
+            '<td>'+p.contratos+'</td>'+
+            '<td style="color:var(--green);">$'+fmt(p.ingresos)+'</td>'+
+            '<td style="color:var(--red);">$'+fmt(p.costos)+'</td>'+
+            '<td style="font-weight:700;">$'+fmt(p.utilidad)+'</td>'+
+            '<td><span class="badge badge-'+badge+'">'+pct+'%</span></td></tr>';
+        }).join('')+
+        '<tr style="background:var(--bg-elev);font-weight:700;"><td>TOTAL '+anio+'</td>'+
+          '<td>—</td><td>—</td>'+
+          '<td style="color:var(--green);">$'+fmt(totIng)+'</td>'+
+          '<td style="color:var(--red);">$'+fmt(totCos)+'</td>'+
+          '<td>$'+fmt(totUti)+'</td>'+
+          '<td>'+promOcup+'%</td></tr>'+
+        '</tbody></table></div></div>';
+    } else if (vista === 'bodega') {
+      html += '<div class="card">'+
+        '<div class="card-header"><h3>🏭 Ingresos por Bodega — '+anio+'</h3><span class="count">Suma $ por bodega, mes a mes</span></div>'+
+        '<div class="table-wrap"><table><thead><tr><th style="position:sticky;left:0;background:var(--bg-panel);z-index:2;">Bodega</th>';
+      for (var i=0;i<12;i++) html += '<th>'+meses[i]+'</th>';
+      html += '<th>Total</th></tr></thead><tbody>';
+      bodegas.forEach(function(b){
+        html += '<tr><td style="position:sticky;left:0;background:var(--bg-panel);z-index:1;"><strong>'+esc(b.nombre)+'</strong></td>';
+        var totB = 0;
+        for (var mm=0;mm<12;mm++) {
+          var v = cb.filter(function(r){ return r.bodega_id===b.id && vigenteEnMes(r, mm); }).reduce(function(a,r){ return a+(parseFloat(r.mts2||0)*parseFloat(r.valor_m2||0)); }, 0);
+          totB += v;
+          html += '<td>'+(v>0?'$'+fmt(v):'—')+'</td>';
+        }
+        html += '<td style="font-weight:700;">$'+fmt(totB)+'</td></tr>';
+      });
+      html += '<tr style="background:var(--bg-elev);font-weight:700;"><td style="position:sticky;left:0;background:var(--bg-elev);z-index:1;">TOTAL</td>';
+      for (var mm=0;mm<12;mm++) html += '<td>$'+fmt(proy[mm].ingresos)+'</td>';
+      html += '<td>$'+fmt(totIng)+'</td></tr>';
+      html += '</tbody></table></div></div>';
+    } else if (vista === 'cliente') {
+      var cliUsados = {};
+      contratos.forEach(function(c){ if (c.cliente_id) cliUsados[c.cliente_id]=true; });
+      var clis = clientes.filter(function(c){ return cliUsados[c.id]; }).sort(function(a,b){ return (a.razon_social||'').localeCompare(b.razon_social||''); });
+      html += '<div class="card">'+
+        '<div class="card-header"><h3>👥 Ingresos por Cliente — '+anio+'</h3><span class="count">'+clis.length+' clientes con contratos</span></div>'+
+        '<div class="table-wrap"><table><thead><tr><th style="position:sticky;left:0;background:var(--bg-panel);z-index:2;">Cliente</th>';
+      for (var i=0;i<12;i++) html += '<th>'+meses[i]+'</th>';
+      html += '<th>Total</th></tr></thead><tbody>';
+      clis.forEach(function(cli){
+        html += '<tr><td style="position:sticky;left:0;background:var(--bg-panel);z-index:1;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(cli.razon_social)+'"><strong>'+esc(cli.razon_social)+'</strong></td>';
+        var totC = 0;
+        for (var mm=0;mm<12;mm++) {
+          var v = cb.filter(function(r){ 
+            var c = contMap[r.contrato_id];
+            return c && c.cliente_id === cli.id && vigenteEnMes(r, mm); 
+          }).reduce(function(a,r){ return a+(parseFloat(r.mts2||0)*parseFloat(r.valor_m2||0)); }, 0);
+          totC += v;
+          html += '<td>'+(v>0?'$'+fmt(v):'—')+'</td>';
+        }
+        html += '<td style="font-weight:700;">$'+fmt(totC)+'</td></tr>';
+      });
+      html += '<tr style="background:var(--bg-elev);font-weight:700;"><td style="position:sticky;left:0;background:var(--bg-elev);z-index:1;">TOTAL</td>';
+      for (var mm=0;mm<12;mm++) html += '<td>$'+fmt(proy[mm].ingresos)+'</td>';
+      html += '<td>$'+fmt(totIng)+'</td></tr>';
+      html += '</tbody></table></div></div>';
+    }
+
+    document.getElementById('mainArea').innerHTML = html;
+  } catch(e) {
+    toast('Error: '+e.message,'error');
+    document.getElementById('mainArea').innerHTML='<div class="empty">Error cargando proyección</div>';
+  }
+}
+
+function _proyChg() {
+  window._proy.anio = parseInt(document.getElementById('pAnio').value);
+  window._proy.vista = document.getElementById('pVista').value;
+  window._proy.escenario = document.getElementById('pEsc').value;
+  renderProyeccion();
+}
+
+function _proyGrafico(proy, meses) {
+  var maxV = Math.max.apply(null, proy.map(function(p){ return Math.max(p.ingresos, p.costos); }));
+  if (maxV === 0) maxV = 1;
+  var w = 900, h = 300, pad = 50;
+  var slot = (w-pad*2) / 12;
+  var bw = slot / 2 - 4;
+  var svg = '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:300px;">';
+  // Grid lines
+  for (var g=0; g<=4; g++) {
+    var y = pad + ((h-pad*2) * g / 4);
+    var val = maxV * (1 - g/4);
+    svg += '<line x1="'+pad+'" y1="'+y+'" x2="'+(w-pad)+'" y2="'+y+'" stroke="rgba(148,163,184,.1)"/>';
+    svg += '<text x="'+(pad-6)+'" y="'+(y+3)+'" text-anchor="end" fill="#64748b" font-size="9">$'+fmtInt(val)+'</text>';
+  }
+  // Barras
+  for (var i=0;i<12;i++) {
+    var xBase = pad + i*slot + 4;
+    var hIng = maxV>0 ? ((h-pad*2) * proy[i].ingresos) / maxV : 0;
+    var hCos = maxV>0 ? ((h-pad*2) * proy[i].costos) / maxV : 0;
+    svg += '<rect x="'+xBase+'" y="'+(h-pad-hIng)+'" width="'+bw+'" height="'+hIng+'" fill="#10b981" rx="3"><title>Ingresos '+meses[i]+': $'+fmt(proy[i].ingresos)+'</title></rect>';
+    svg += '<rect x="'+(xBase+bw+2)+'" y="'+(h-pad-hCos)+'" width="'+bw+'" height="'+hCos+'" fill="#ef4444" rx="3"><title>Costo '+meses[i]+': $'+fmt(proy[i].costos)+'</title></rect>';
+    svg += '<text x="'+(xBase+bw)+'" y="'+(h-pad+18)+'" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">'+meses[i]+'</text>';
+  }
+  svg += '</svg>';
+  return '<div class="card"><div class="card-header"><h3>📊 Ingresos vs Costos por Mes</h3><span class="count"><span style="color:#10b981;font-weight:700;">■</span> Ingresos &nbsp;&nbsp; <span style="color:#ef4444;font-weight:700;">■</span> Costo</span></div><div style="padding:20px;overflow-x:auto;">'+svg+'</div></div>';
 }
 
 // ═══════════════════════════════════════════════════════════════
