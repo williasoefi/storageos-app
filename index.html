@@ -192,6 +192,18 @@ tr:hover td{background:rgba(30,49,96,.35);}
 .floor-cell.red .floor-bar-fill{background:var(--red);}
 
 .linea-bod{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px;padding:10px;background:var(--bg-elev);border-radius:8px;}
+
+.topbar-bell{position:relative;cursor:pointer;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--bg-elev);border-radius:8px;color:var(--text2);transition:.15s;}
+.topbar-bell:hover{background:var(--bg-hover);color:var(--brand);}
+.bell-badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:9px;font-weight:800;min-width:18px;height:18px;padding:0 5px;border-radius:9px;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg-panel);}
+.alert-item{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
+.alert-item:last-child{border-bottom:none;}
+.alert-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.alert-icon.red{background:rgba(239,68,68,.15);color:var(--red);}
+.alert-icon.yellow{background:rgba(245,158,11,.15);color:var(--yellow);}
+.alert-body{flex:1;min-width:0;}
+.alert-title{font-size:12px;font-weight:700;margin-bottom:2px;}
+.alert-sub{font-size:11px;color:var(--text3);}
 </style>
 </head>
 <body>
@@ -273,6 +285,10 @@ tr:hover td{background:rgba(30,49,96,.35);}
         <input type="text" placeholder="Buscar..."/>
       </div>
       <div class="topbar-actions">
+        <div class="topbar-bell" id="topbarBell" onclick="verAlertas()" title="Alertas">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span class="bell-badge" id="bellBadge" style="display:none;">0</span>
+        </div>
         <div class="topbar-badge"><span class="dot"></span> Sistema en línea</div>
       </div>
     </div>
@@ -340,7 +356,7 @@ async function login(){
     if(!res.ok||!d.access_token)throw new Error(d.error_description||d.msg||'Error de autenticación');
     _jwt=d.access_token;_refreshToken=d.refresh_token;_user=d.user;
     saveSession();startRefreshInterval();showApp();
-    toast('¡Sesión iniciada!','success');navTo('dashboard');
+    toast('¡Sesión iniciada!','success');navTo('dashboard');cargarAlertas();setInterval(cargarAlertas,5*60*1000);
   }catch(e){errEl.textContent=e.message;errEl.style.display='block';}
 }
 function logout(){clearSession();document.getElementById('loginOverlay').style.display='flex';document.getElementById('app').style.display='none';document.getElementById('loginEmail').value='';document.getElementById('loginPassword').value='';}
@@ -614,12 +630,20 @@ async function modalBodega(id){
   openModal(id?'Editar Bodega':'Nueva Bodega',
     '<div class="form-row"><div><label>Nombre *</label><input id="bNombre" value="'+esc(b.nombre)+'"/></div><div><label>Tipo *</label><select id="bTipo"><option value="almacen"'+((b.tipo||'almacen')==='almacen'?' selected':'')+'>Almacén</option><option value="predio"'+(b.tipo==='predio'?' selected':'')+'>Predio</option></select></div></div>'+
     '<div class="form-field"><label>Ubicación</label><input id="bUbic" value="'+esc(b.ubicacion)+'"/></div>'+
-    '<div class="form-row"><div><label>Total M² *</label><input id="bTotal" type="number" step="0.01" value="'+(b.mts2_totales||0)+'"/></div><div><label>% Pasillos</label><input id="bPct" type="number" step="0.01" value="'+(b.pct_pasillos||0)+'"/></div></div>'+
-    '<div class="form-row"><div><label>M² Disponibles</label><input id="bDisp" type="number" step="0.01" value="'+(b.mts2_disponibles||0)+'"/></div><div><label>Valor $ / m²</label><input id="bVal" type="number" step="0.01" value="'+(b.valor_m2_alquiler||0)+'"/></div></div>',
+    '<div class="form-row"><div><label>Total M² *</label><input id="bTotal" type="number" step="0.01" value="'+(b.mts2_totales||0)+'" oninput="_calcDisp()"/></div><div><label>% Pasillos</label><input id="bPct" type="number" step="0.01" value="'+(b.pct_pasillos||0)+'" oninput="_calcDisp()"/></div></div>'+
+    '<div class="form-row"><div><label>M² Disponibles (auto)</label><input id="bDisp" type="number" step="0.01" value="'+(b.mts2_disponibles||0)+'" readonly style="background:var(--bg-body);cursor:not-allowed;opacity:.7;" title="Se calcula automáticamente: Total × (1 - %Pasillos/100)"/></div><div><label>Valor $ / m²</label><input id="bVal" type="number" step="0.01" value="'+(b.valor_m2_alquiler||0)+'"/></div></div>',
     '<button class="btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn-primary" onclick="guardarBodega('+(id||0)+')">Guardar</button>');
 }
+function _calcDisp(){
+  var t = parseFloat(document.getElementById('bTotal').value)||0;
+  var p = parseFloat(document.getElementById('bPct').value)||0;
+  var d = t * (1 - p/100);
+  document.getElementById('bDisp').value = d.toFixed(2);
+}
 async function guardarBodega(id){
-  var rec={nombre:document.getElementById('bNombre').value.trim(),tipo:document.getElementById('bTipo').value,ubicacion:document.getElementById('bUbic').value.trim()||null,mts2_totales:parseFloat(document.getElementById('bTotal').value)||0,pct_pasillos:parseFloat(document.getElementById('bPct').value)||0,mts2_disponibles:parseFloat(document.getElementById('bDisp').value)||0,valor_m2_alquiler:parseFloat(document.getElementById('bVal').value)||0};
+  var t = parseFloat(document.getElementById('bTotal').value)||0;
+  var p = parseFloat(document.getElementById('bPct').value)||0;
+  var rec={nombre:document.getElementById('bNombre').value.trim(),tipo:document.getElementById('bTipo').value,ubicacion:document.getElementById('bUbic').value.trim()||null,mts2_totales:t,pct_pasillos:p,mts2_disponibles:t*(1-p/100),valor_m2_alquiler:parseFloat(document.getElementById('bVal').value)||0};
   if(!rec.nombre){toast('Nombre requerido','error');return;}
   var res=await sbFetch('/rest/v1/bodegas'+(id?'?id=eq.'+id:''),{method:id?'PATCH':'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(rec)});
   if(!res.ok){var e=await res.json();toast('Error: '+(e.message||res.status),'error');return;}
@@ -708,8 +732,8 @@ async function renderContratos(){
       '</div>'+
       '<div class="card">'+
         '<div class="card-header"><h3>'+ico('contract')+' Listado de Contratos</h3><span class="count">'+contratos.length+' registros</span></div>'+
-        '<div class="table-wrap"><table><thead><tr><th>Código</th><th>Cliente</th><th>Bodegas</th><th>Total M²</th><th>Renta/mes</th><th>Inicio</th><th>Fin</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>'+
-        (contratos.length===0?'<tr><td colspan="9" class="empty">Sin contratos</td></tr>':
+        '<div class="table-wrap"><table><thead><tr><th>Código</th><th>Cliente</th><th>Bodegas</th><th>Total M²</th><th>Renta/mes</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Renov.</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>'+
+        (contratos.length===0?'<tr><td colspan="10" class="empty">Sin contratos</td></tr>':
         contratos.map(function(c){
           var lin=bodPor[c.id]||[];
           var totM=lin.reduce(function(a,l){return a+parseFloat(l.mts2||0);},0);
@@ -733,28 +757,62 @@ async function renderContratos(){
             '<td>'+ini+'</td>'+
             '<td>'+finT+'</td>'+
             '<td>'+estado+'</td>'+
+            '<td>'+(c.renovado_de?'<span class="badge badge-steel" title="Renovación">↻ '+c.renovado_de+'</span>':'—')+'</td>'+
             '<td><div class="actions">'+
               '<button class="btn-ghost btn-icon" onclick="modalContrato('+c.id+')" title="Editar">'+ico('edit','ico-sm')+'</button>'+
+              '<button class="btn-steel btn-icon" onclick="modalContrato(0,'+c.id+')" title="Renovar" style="padding:5px 8px;">↻</button>'+
               '<button class="btn-danger btn-icon" onclick="eliminarContrato('+c.id+')" title="Eliminar">'+ico('trash','ico-sm')+'</button>'+
             '</div></td></tr>';
         }).join(''))+
         '</tbody></table></div></div>';
   }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error</div>';}
 }
-async function modalContrato(id){
-  var c={codigo:'',cliente_id:null,fecha_inicio:'',fecha_fin:'',activo:true,observaciones:''};
+async function modalContrato(id, renovarDeId){
+  var c={codigo:'',cliente_id:null,fecha_inicio:'',fecha_fin:'',activo:true,observaciones:'',renovado_de:null};
   var lineas=[];
-  var [rCli,rBod]=await Promise.all([sbFetch('/rest/v1/clientes_almacen?select=id,codigo,razon_social&order=razon_social.asc'),sbFetch('/rest/v1/bodegas?select=id,nombre&order=nombre.asc')]);
+  var [rCli,rBod,rAllCont]=await Promise.all([
+    sbFetch('/rest/v1/clientes_almacen?select=id,codigo,razon_social&order=razon_social.asc'),
+    sbFetch('/rest/v1/bodegas?select=id,nombre&order=nombre.asc'),
+    sbFetch('/rest/v1/contratos?select=id,codigo,cliente_id,fecha_fin&order=codigo.desc&limit=10000')
+  ]);
   var clientes=await rCli.json();if(!Array.isArray(clientes))clientes=[];
   var bodegas=await rBod.json();if(!Array.isArray(bodegas))bodegas=[];
+  var allContratos=await rAllCont.json();if(!Array.isArray(allContratos))allContratos=[];
   if(id){var [r1,r2]=await Promise.all([sbFetch('/rest/v1/contratos?id=eq.'+id),sbFetch('/rest/v1/contrato_bodegas?contrato_id=eq.'+id)]);var d1=await r1.json();if(d1&&d1[0])c=d1[0];var d2=await r2.json();if(Array.isArray(d2))lineas=d2.map(function(l){return{id:l.id,bodega_id:l.bodega_id,mts2:l.mts2,valor_m2:l.valor_m2};});}
+  else if(renovarDeId){
+    // Precargar datos del contrato a renovar
+    var [rOld,rOldB]=await Promise.all([sbFetch('/rest/v1/contratos?id=eq.'+renovarDeId),sbFetch('/rest/v1/contrato_bodegas?contrato_id=eq.'+renovarDeId)]);
+    var dOld=await rOld.json();
+    if(dOld&&dOld[0]){
+      var orig=dOld[0];
+      c.cliente_id=orig.cliente_id;
+      c.observaciones='Renovación del contrato '+orig.codigo;
+      c.renovado_de=renovarDeId;
+      // Sugerir fechas: inicio = día siguiente al fin del original, fin = +1 año
+      if(orig.fecha_fin){
+        var nextIni=new Date(orig.fecha_fin);nextIni.setDate(nextIni.getDate()+1);
+        c.fecha_inicio=nextIni.toISOString().split('T')[0];
+        var nextFin=new Date(nextIni);nextFin.setFullYear(nextFin.getFullYear()+1);
+        c.fecha_fin=nextFin.toISOString().split('T')[0];
+      }
+    }
+    var dOldB=await rOldB.json();
+    if(Array.isArray(dOldB))lineas=dOldB.map(function(l){return{id:null,bodega_id:l.bodega_id,mts2:l.mts2,valor_m2:l.valor_m2};});
+    var rAllCode=await sbFetch('/rest/v1/contratos?select=codigo&order=codigo.desc&limit=1');
+    var daCode=await rAllCode.json();
+    var nextN=1;if(daCode&&daCode[0]&&daCode[0].codigo){var mM=daCode[0].codigo.match(/(\d+)/);if(mM)nextN=parseInt(mM[1])+1;}
+    c.codigo='CONT-'+String(nextN).padStart(5,'0');
+  }
   else{var rAll=await sbFetch('/rest/v1/contratos?select=codigo&order=codigo.desc&limit=1');var da=await rAll.json();var next=1;if(da&&da[0]&&da[0].codigo){var m=da[0].codigo.match(/(\d+)/);if(m)next=parseInt(m[1])+1;}c.codigo='CONT-'+String(next).padStart(5,'0');}
-  window._modLin=lineas;window._modBod=bodegas;
+  window._modLin=lineas;window._modBod=bodegas;window._modAllCont=allContratos;
   var optsC=clientes.map(function(x){return '<option value="'+x.id+'"'+(c.cliente_id===x.id?' selected':'')+'>'+esc(x.codigo+' — '+x.razon_social)+'</option>';}).join('');
-  openModal(id?'Editar Contrato':'Nuevo Contrato',
+  var renovacionBanner = c.renovado_de ? '<div style="background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);color:var(--steel);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:12px;">'+ico('contract','ico-sm')+' Este contrato es una renovación del contrato original (ID '+c.renovado_de+')</div>' : '';
+  openModal(id?'Editar Contrato':(renovarDeId?'Renovar Contrato':'Nuevo Contrato'),
+    renovacionBanner+
     '<div class="form-row"><div><label>Código *</label><input id="ctCod" value="'+esc(c.codigo)+'"/></div><div><label>Estado</label><select id="ctAct"><option value="true"'+(c.activo?' selected':'')+'>Activo</option><option value="false"'+(!c.activo?' selected':'')+'>Inactivo</option></select></div></div>'+
     '<div class="form-field"><label>Cliente *</label><select id="ctCli"><option value="">— Seleccionar —</option>'+optsC+'</select></div>'+
     '<div class="form-row"><div><label>Fecha Inicio</label><input id="ctIni" type="date" value="'+(c.fecha_inicio||'')+'"/></div><div><label>Fecha Fin</label><input id="ctFin" type="date" value="'+(c.fecha_fin||'')+'"/></div></div>'+
+    '<input type="hidden" id="ctRenovadoDe" value="'+(c.renovado_de||'')+'"/>'+
     '<div class="form-field"><label>Observaciones</label><textarea id="ctObs" rows="2">'+esc(c.observaciones||'')+'</textarea></div>'+
     '<div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;"><label style="margin:0;">Bodegas asignadas</label><button class="btn-steel btn-icon" onclick="_agregarLin()">+ Agregar bodega</button></div>'+
     '<div id="lineasBod"></div>',
@@ -766,7 +824,8 @@ function _updLin(el){var i=parseInt(el.getAttribute('data-i'));var f=el.getAttri
 function _agregarLin(){if(!window._modLin)window._modLin=[];window._modLin.push({id:null,bodega_id:null,mts2:0,valor_m2:0});_renderLin();}
 function _delLin(i){if(window._modLin)window._modLin.splice(i,1);_renderLin();}
 async function guardarContrato(id){
-  var rec={codigo:document.getElementById('ctCod').value.trim(),cliente_id:parseInt(document.getElementById('ctCli').value)||null,fecha_inicio:document.getElementById('ctIni').value||null,fecha_fin:document.getElementById('ctFin').value||null,observaciones:document.getElementById('ctObs').value.trim()||null,activo:document.getElementById('ctAct').value==='true'};
+  var renovadoDeVal=document.getElementById('ctRenovadoDe').value;
+  var rec={codigo:document.getElementById('ctCod').value.trim(),cliente_id:parseInt(document.getElementById('ctCli').value)||null,fecha_inicio:document.getElementById('ctIni').value||null,fecha_fin:document.getElementById('ctFin').value||null,observaciones:document.getElementById('ctObs').value.trim()||null,activo:document.getElementById('ctAct').value==='true',renovado_de:renovadoDeVal?parseInt(renovadoDeVal):null};
   var lineas=(window._modLin||[]).filter(function(l){return l.bodega_id&&l.mts2>0;});
   if(!rec.codigo||!rec.cliente_id){toast('Código y Cliente requeridos','error');return;}
   if(lineas.length===0){toast('Agregá al menos una bodega','error');return;}
@@ -778,14 +837,18 @@ async function guardarContrato(id){
   var inserts=lineas.map(function(l){return{contrato_id:contId,bodega_id:l.bodega_id,mts2:l.mts2,valor_m2:l.valor_m2};});
   var rIns=await sbFetch('/rest/v1/contrato_bodegas',{method:'POST',body:JSON.stringify(inserts)});
   if(!rIns.ok){var e2=await rIns.json();toast('Error bodegas: '+(e2.message||rIns.status),'error');return;}
-  toast(id?'Contrato actualizado':'Contrato creado');closeModal();renderContratos();
+  // Si es renovación, marcar el original como inactivo
+  if(!id && rec.renovado_de){
+    await sbFetch('/rest/v1/contratos?id=eq.'+rec.renovado_de,{method:'PATCH',body:JSON.stringify({activo:false})});
+  }
+  toast(id?'Contrato actualizado':(rec.renovado_de?'Contrato renovado':'Contrato creado'));closeModal();renderContratos();cargarAlertas();
 }
 async function eliminarContrato(id){
   if(!(await confirmar('¿Eliminar este contrato?')))return;
   await sbFetch('/rest/v1/contrato_bodegas?contrato_id=eq.'+id,{method:'DELETE'});
   var res=await sbFetch('/rest/v1/contratos?id=eq.'+id,{method:'DELETE'});
   if(!res.ok){toast('Error al eliminar','error');return;}
-  toast('Contrato eliminado');renderContratos();
+  toast('Contrato eliminado');renderContratos();cargarAlertas();
 }
 
 // ═══ OCUPACIONES ═══
@@ -956,7 +1019,83 @@ function _proyGrafico(proy,meses){
   return '<div class="card"><div class="card-header"><h3>'+ico('chart')+' Ingresos vs Costos por Mes</h3><span class="count"><span style="color:#10b981;font-weight:700;">■</span> Ingresos &nbsp; <span style="color:#ef4444;font-weight:700;">■</span> Costo</span></div><div style="padding:16px;overflow-x:auto;">'+svg+'</div></div>';
 }
 
-window.addEventListener('load',function(){if(loadSession()){showApp();startRefreshInterval();navTo('dashboard');}else{document.getElementById('loginOverlay').style.display='flex';document.getElementById('app').style.display='none';}});
+
+// ═══════════════════════════════════════════════════════════════
+// ALERTAS (bell)
+// ═══════════════════════════════════════════════════════════════
+var _alertas = { porVencer:[], vencidos:[] };
+async function cargarAlertas(){
+  try{
+    var [rC, rCli] = await Promise.all([
+      sbFetch('/rest/v1/contratos?select=*&limit=10000'),
+      sbFetch('/rest/v1/clientes_almacen?select=id,razon_social&limit=10000')
+    ]);
+    var contratos = await rC.json(); if(!Array.isArray(contratos)) contratos=[];
+    var clientes = await rCli.json(); if(!Array.isArray(clientes)) clientes=[];
+    var cliMap={}; clientes.forEach(function(c){ cliMap[c.id]=c; });
+    var hoy=new Date(); hoy.setHours(0,0,0,0);
+    var en90=new Date(); en90.setHours(0,0,0,0); en90.setDate(en90.getDate()+90);
+    _alertas.porVencer = [];
+    _alertas.vencidos = [];
+    contratos.forEach(function(c){
+      if(c.activo===false) return;
+      var fin=c.fecha_fin?new Date(c.fecha_fin):null;
+      if(!fin) return;
+      fin.setHours(0,0,0,0);
+      var cli = cliMap[c.cliente_id] || {};
+      var item = { id:c.id, codigo:c.codigo, cliente:cli.razon_social||'—', fecha_fin:c.fecha_fin };
+      if(fin < hoy) _alertas.vencidos.push(item);
+      else if(fin <= en90) _alertas.porVencer.push(item);
+    });
+    var total = _alertas.porVencer.length + _alertas.vencidos.length;
+    var badge = document.getElementById('bellBadge');
+    if(badge){
+      if(total > 0){
+        badge.textContent = total > 99 ? '99+' : total;
+        badge.style.display = 'flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  }catch(e){ console.error('Error cargando alertas:',e); }
+}
+
+function verAlertas(){
+  var body = '';
+  if(_alertas.vencidos.length === 0 && _alertas.porVencer.length === 0){
+    body = '<div style="padding:40px;text-align:center;color:var(--text3);">'+ico('check','ico-lg')+'<div style="margin-top:10px;">No hay alertas pendientes</div></div>';
+  } else {
+    if(_alertas.vencidos.length > 0){
+      body += '<div style="padding:10px 14px;background:var(--bg-elev);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--red);">'+ico('contract','ico-sm')+' Contratos vencidos ('+_alertas.vencidos.length+')</div>';
+      body += _alertas.vencidos.map(function(a){
+        var fin = a.fecha_fin ? new Date(a.fecha_fin).toLocaleDateString('en-US') : '—';
+        var dias = Math.floor((new Date() - new Date(a.fecha_fin))/(1000*60*60*24));
+        return '<div class="alert-item">'+
+          '<div class="alert-icon red">'+ico('contract','ico-sm')+'</div>'+
+          '<div class="alert-body"><div class="alert-title">'+esc(a.codigo)+' — '+esc(a.cliente)+'</div>'+
+          '<div class="alert-sub">Venció el '+fin+' · hace '+dias+' días</div></div>'+
+          '<button class="btn-steel btn-icon" onclick="closeModal();navTo(\'contratos\');" style="padding:5px 10px;">Ver</button>'+
+        '</div>';
+      }).join('');
+    }
+    if(_alertas.porVencer.length > 0){
+      body += '<div style="padding:10px 14px;background:var(--bg-elev);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--yellow);">'+ico('contract','ico-sm')+' Por vencer próximos 90 días ('+_alertas.porVencer.length+')</div>';
+      body += _alertas.porVencer.map(function(a){
+        var fin = a.fecha_fin ? new Date(a.fecha_fin).toLocaleDateString('en-US') : '—';
+        var dias = Math.floor((new Date(a.fecha_fin) - new Date())/(1000*60*60*24));
+        return '<div class="alert-item">'+
+          '<div class="alert-icon yellow">'+ico('contract','ico-sm')+'</div>'+
+          '<div class="alert-body"><div class="alert-title">'+esc(a.codigo)+' — '+esc(a.cliente)+'</div>'+
+          '<div class="alert-sub">Vence el '+fin+' · en '+dias+' días</div></div>'+
+          '<button class="btn-primary btn-icon" onclick="closeModal();modalContrato(0,'+a.id+');" style="padding:5px 10px;">↻ Renovar</button>'+
+        '</div>';
+      }).join('');
+    }
+  }
+  openModal('Alertas de Contratos', '<div style="margin:-20px;">'+body+'</div>', '<button class="btn-ghost" onclick="closeModal()">Cerrar</button>');
+}
+
+window.addEventListener('load',function(){if(loadSession()){showApp();startRefreshInterval();navTo('dashboard');cargarAlertas();setInterval(cargarAlertas,5*60*1000);}else{document.getElementById('loginOverlay').style.display='flex';document.getElementById('app').style.display='none';}});
 </script>
 </body>
 </html>
