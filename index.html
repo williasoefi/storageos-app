@@ -7,13 +7,13 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
-  /* Industrial dark palette */
-  --bg-body:#050e1a;
-  --bg-panel:#0a1929;
-  --bg-elev:#0f2340;
-  --bg-hover:#152d4d;
-  --border:rgba(148,163,184,.10);
-  --border-strong:rgba(148,163,184,.22);
+  /* Vibrant navy palette (EFI-style) */
+  --bg-body:#0f1e3d;
+  --bg-panel:#16274d;
+  --bg-elev:#1e3160;
+  --bg-hover:#263e75;
+  --border:rgba(148,163,184,.12);
+  --border-strong:rgba(148,163,184,.24);
   /* Logistics orange (primary CTA) */
   --brand:#f97316;
   --brand-dark:#ea580c;
@@ -22,11 +22,9 @@
   --steel:#3b82f6;
   --steel-dark:#2563eb;
   /* Text */
-  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
-  /* Status colors */
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#94a3b8;
+  /* Status */
   --green:#10b981;--red:#ef4444;--yellow:#f59e0b;--purple:#a855f7;
-  /* Metallic accents */
-  --steel-1:#334155;--steel-2:#475569;
 }
 html,body{background:var(--bg-body);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;min-height:100vh;font-size:13px;line-height:1.5;}
 input,select,textarea{background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:6px;color:var(--text);padding:8px 11px;font-size:12px;width:100%;outline:none;font-family:inherit;}
@@ -43,14 +41,13 @@ button{cursor:pointer;border:none;border-radius:6px;font-size:12px;font-weight:6
 .btn-icon{padding:5px 8px;font-size:11px;}
 label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);display:block;margin-bottom:4px;}
 
-/* SVG icons */
 .ico{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
 .ico-sm{width:14px;height:14px;}
 .ico-lg{width:20px;height:20px;}
 
-/* LOGIN */
-#loginOverlay{position:fixed;inset:0;background:radial-gradient(ellipse at top,#0f2340 0%,#050e1a 60%);display:flex;align-items:center;justify-content:center;z-index:9999;}
-.login-box{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:36px;width:400px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+#loginOverlay{position:fixed;inset:0;background:radial-gradient(ellipse at top,#1e3160 0%,#0f1e3d 60%);display:flex;align-items:center;justify-content:center;z-index:9999;}
+.login-box{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:36px;width:400px;box-shadow:0 20px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;}
+.login-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),#22d3ee);}
 .login-brand{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
 .login-brand-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--brand),var(--brand-dark));border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;}
 .login-box h1{font-size:19px;font-weight:800;letter-spacing:-.02em;}
@@ -59,11 +56,10 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06
 .login-box .field{margin-bottom:14px;}
 .login-error{color:#ef4444;font-size:11px;margin-top:8px;display:none;}
 
-/* SHELL — Sidebar + Main */
 .shell{display:grid;grid-template-columns:230px 1fr;min-height:100vh;}
 
-/* SIDEBAR */
-.sidebar{background:var(--bg-panel);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
+.sidebar{background:var(--bg-panel);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;position:relative;}
+.sidebar::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),#22d3ee);z-index:2;}
 .sb-brand{padding:18px 18px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
 .sb-brand-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--brand),var(--brand-dark));border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;}
 .sb-brand-txt h2{font-size:14px;font-weight:800;letter-spacing:-.01em;line-height:1.2;}
@@ -80,9 +76,9 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06
 .sb-user .u-name{font-size:12px;font-weight:600;line-height:1.2;}
 .sb-user .u-rol{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
 
-/* MAIN */
 .main-wrap{display:flex;flex-direction:column;min-height:100vh;}
-.topbar{background:var(--bg-panel);border-bottom:1px solid var(--border);height:52px;display:flex;align-items:center;padding:0 20px;gap:16px;}
+.topbar{background:var(--bg-panel);border-bottom:1px solid var(--border);height:52px;display:flex;align-items:center;padding:0 20px;gap:16px;position:relative;}
+.topbar::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),#22d3ee);}
 .topbar-crumb{font-size:12px;color:var(--text3);}
 .topbar-crumb strong{color:var(--text);}
 .topbar-search{flex:1;max-width:320px;position:relative;}
@@ -90,7 +86,8 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06
 .topbar-search .ico{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text3);}
 .topbar-actions{display:flex;align-items:center;gap:8px;}
 .topbar-badge{background:var(--bg-elev);padding:5px 10px;border-radius:14px;font-size:10px;color:var(--text2);display:flex;align-items:center;gap:6px;}
-.topbar-badge .dot{width:6px;height:6px;background:var(--green);border-radius:50%;}
+.topbar-badge .dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
 
 .main{padding:20px 24px;max-width:1600px;margin:0 auto;width:100%;}
 .page-header{margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
@@ -98,7 +95,13 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06
 .page-title .ico{color:var(--brand);}
 .page-sub{font-size:12px;color:var(--text3);}
 
-/* KPI CARDS — compact */
+/* Section dividers for tipo Almacen/Predio */
+.section-divider{display:flex;align-items:center;gap:10px;margin:14px 0 12px;padding:0 2px;}
+.section-divider-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border-strong),transparent);}
+.section-divider-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text2);display:flex;align-items:center;gap:8px;}
+.section-divider-title .ico{color:var(--brand);width:14px;height:14px;}
+.section-divider-count{background:var(--bg-elev);color:var(--text2);padding:3px 10px;border-radius:12px;font-size:10px;font-weight:600;}
+
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;}
 .kpi{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden;}
 .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--brand);}
@@ -117,32 +120,36 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06
 .kpi-val{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.1;}
 .kpi-lbl{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-top:4px;}
 
-/* CARDS */
+/* Compact KPI variant for contract subdivisions */
+.kpi-sub{display:flex;flex-direction:column;gap:2px;margin-top:4px;padding-top:6px;border-top:1px solid var(--border);}
+.kpi-sub-row{display:flex;justify-content:space-between;align-items:center;font-size:10px;}
+.kpi-sub-row .lbl{color:var(--text3);}
+.kpi-sub-row .val{font-weight:700;color:var(--text);}
+.kpi-sub-row.warn .val{color:var(--yellow);}
+.kpi-sub-row.err .val{color:var(--red);}
+
 .card{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;}
 .card-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
 .card-header h3{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:-.01em;}
 .card-header h3 .ico{color:var(--brand);}
 .card-header .count{font-size:11px;color:var(--text3);font-weight:500;}
 
-/* TABLE — compact */
 .table-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;}
-thead tr{background:rgba(15,35,64,.5);}
+thead tr{background:rgba(30,49,96,.5);}
 th{padding:8px 14px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.08em;white-space:nowrap;}
 td{padding:9px 14px;font-size:12px;border-bottom:1px solid var(--border);vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
-tr:hover td{background:rgba(15,35,64,.35);}
+tr:hover td{background:rgba(30,49,96,.35);}
 .actions{display:flex;gap:4px;justify-content:flex-end;}
 
-/* BADGES */
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
 .badge-green{background:rgba(16,185,129,.15);color:var(--green);}
 .badge-red{background:rgba(239,68,68,.15);color:var(--red);}
 .badge-yellow{background:rgba(245,158,11,.15);color:var(--yellow);}
 .badge-steel{background:rgba(59,130,246,.15);color:var(--steel);}
 
-/* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(5,10,20,.88);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay{position:fixed;inset:0;background:rgba(10,20,45,.88);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
 .modal-overlay.open{display:flex;}
 .modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;width:100%;max-width:900px;max-height:90vh;overflow-y:auto;box-shadow:0 25px 70px rgba(0,0,0,.5);}
 .modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
@@ -152,7 +159,6 @@ tr:hover td{background:rgba(15,35,64,.35);}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
 .form-field{margin-bottom:12px;}
 
-/* MISC */
 .empty{padding:44px;text-align:center;color:var(--text3);font-size:12px;}
 .loading{padding:44px;text-align:center;color:var(--text3);font-size:12px;}
 .toast{position:fixed;bottom:24px;right:24px;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:8px;padding:12px 16px;font-size:12px;z-index:9999;display:none;max-width:340px;box-shadow:0 10px 40px rgba(0,0,0,.4);}
@@ -163,16 +169,18 @@ tr:hover td{background:rgba(15,35,64,.35);}
 @keyframes slideUp{from{opacity:0;transform:translateY(15px);}to{opacity:1;transform:translateY(0);}}
 .session-status{position:fixed;bottom:8px;left:14px;font-size:9px;color:var(--text3);z-index:100;opacity:.5;}
 
-/* Warehouse floor plan */
+/* Floor plan - fix: quitar border-top que causaba línea cruzada */
 .floor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;padding:16px;}
 .floor-cell{background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;padding:12px;position:relative;overflow:hidden;cursor:pointer;transition:.15s;}
 .floor-cell:hover{border-color:var(--brand);transform:translateY(-1px);}
-.floor-fill{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent,rgba(16,185,129,.15));border-top:2px solid var(--green);transition:.3s;}
-.floor-cell.yellow .floor-fill{background:linear-gradient(180deg,transparent,rgba(245,158,11,.15));border-top-color:var(--yellow);}
-.floor-cell.red .floor-fill{background:linear-gradient(180deg,transparent,rgba(239,68,68,.18));border-top-color:var(--red);}
+.floor-fill{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent 30%,rgba(16,185,129,.14));transition:.3s;pointer-events:none;}
+.floor-cell.yellow .floor-fill{background:linear-gradient(180deg,transparent 30%,rgba(245,158,11,.14));}
+.floor-cell.red .floor-fill{background:linear-gradient(180deg,transparent 30%,rgba(239,68,68,.18));}
 .floor-content{position:relative;z-index:1;}
 .floor-name{font-size:12px;font-weight:700;margin-bottom:2px;}
 .floor-loc{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;}
+.floor-tipo{position:absolute;top:10px;right:10px;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 6px;border-radius:3px;background:rgba(59,130,246,.15);color:var(--steel);}
+.floor-cell[data-tipo="predio"] .floor-tipo{background:rgba(168,85,247,.15);color:var(--purple);}
 .floor-stats{display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-bottom:6px;}
 .floor-pct{font-size:18px;font-weight:800;letter-spacing:-.02em;}
 .floor-cell.green .floor-pct{color:var(--green);}
@@ -183,13 +191,11 @@ tr:hover td{background:rgba(15,35,64,.35);}
 .floor-cell.yellow .floor-bar-fill{background:var(--yellow);}
 .floor-cell.red .floor-bar-fill{background:var(--red);}
 
-/* Lineas contrato-bodegas modal */
 .linea-bod{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px;padding:10px;background:var(--bg-elev);border-radius:8px;}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
 <div id="loginOverlay">
   <div class="login-box">
     <div class="login-brand">
@@ -208,9 +214,7 @@ tr:hover td{background:rgba(15,35,64,.35);}
   </div>
 </div>
 
-<!-- APP SHELL -->
 <div class="shell" id="app" style="display:none;">
-  <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sb-brand">
       <div class="sb-brand-icon">
@@ -261,7 +265,6 @@ tr:hover td{background:rgba(15,35,64,.35);}
     </div>
   </aside>
 
-  <!-- MAIN -->
   <div class="main-wrap">
     <div class="topbar">
       <div class="topbar-crumb">Módulo: <strong id="crumb">Dashboard</strong></div>
@@ -293,19 +296,16 @@ tr:hover td{background:rgba(15,35,64,.35);}
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════
-// CONFIG
-// ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://zhmzjiozzdoutnqujbin.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpobXpqaW96emRvdXRucXVqYmluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNTU0NTMsImV4cCI6MjA5NzczMTQ1M30.r0ptqPhLTXO94CC1TDg23NAnAgsCb5UHj3gl917o8yk';
 
 var _jwt=null,_refreshToken=null,_user=null;
 var _refreshInterval=null,_isRefreshing=false,_refreshPromise=null;
 
-// SVG icon library (SVG path only, wrapped in JS for reuse)
 var ICO = {
   dashboard: '<rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>',
   warehouse: '<path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12"/><path d="M6 14h12"/><path d="M6 10h12"/>',
+  land: '<path d="M2 22 12 2l10 20Z"/><path d="M12 6v10"/><path d="M8 22h8"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   contract: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
   package: '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
@@ -314,30 +314,21 @@ var ICO = {
   trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   cash: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-  ruler: '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>',
+  ruler: '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"/>',
   chart: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
   check: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'
 };
-function ico(name, cls) {
-  return '<svg class="ico'+(cls?' '+cls:'')+'" viewBox="0 0 24 24">'+(ICO[name]||'')+'</svg>';
-}
+function ico(name, cls){ return '<svg class="ico'+(cls?' '+cls:'')+'" viewBox="0 0 24 24">'+(ICO[name]||'')+'</svg>'; }
 
-// ═══════════════════════════════════════════════════════════════
-// SESSION
-// ═══════════════════════════════════════════════════════════════
 function saveSession(){localStorage.setItem('_jwt',_jwt);localStorage.setItem('_refreshToken',_refreshToken);localStorage.setItem('_user',JSON.stringify(_user));updateSessionStatus(true);}
 function loadSession(){_jwt=localStorage.getItem('_jwt');_refreshToken=localStorage.getItem('_refreshToken');var s=localStorage.getItem('_user');if(s){try{_user=JSON.parse(s);}catch(e){}}return!!(_jwt&&_refreshToken);}
 function clearSession(){_jwt=null;_refreshToken=null;_user=null;['_jwt','_refreshToken','_user'].forEach(function(k){localStorage.removeItem(k);});if(_refreshInterval)clearInterval(_refreshInterval);updateSessionStatus(false);}
 async function refreshToken(){if(!_refreshToken)return false;try{var res=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:_refreshToken})});if(!res.ok)return false;var d=await res.json();if(d.access_token){_jwt=d.access_token;if(d.refresh_token)_refreshToken=d.refresh_token;saveSession();console.log('✓ Token renovado');return true;}}catch(e){console.error(e);}return false;}
 function startRefreshInterval(){if(_refreshInterval)clearInterval(_refreshInterval);_refreshInterval=setInterval(async function(){var ok=await refreshToken();if(!ok){toast('Sesión expirada','error');logout();}},50*60*1000);}
 function updateSessionStatus(active){var el=document.getElementById('sessionStatus');el.textContent=active?'● Sesión activa':'○ Sin sesión';el.style.color=active?'var(--green)':'var(--red)';}
-
 function sbh(extra){var h={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+(_jwt||SUPABASE_KEY),'Content-Type':'application/json'};if(extra)Object.assign(h,extra);return h;}
 async function sbFetch(path,opts,retry){retry=retry||0;var o=Object.assign({},opts);o.headers=sbh(opts&&opts.headers);var res=await fetch(SUPABASE_URL+path,o);if(res.status===401&&retry<2){if(_isRefreshing){await _refreshPromise;await new Promise(r=>setTimeout(r,500));return sbFetch(path,opts,retry+1);}_isRefreshing=true;_refreshPromise=refreshToken();var ok=await _refreshPromise;_isRefreshing=false;if(ok){await new Promise(r=>setTimeout(r,300));o.headers=sbh(opts&&opts.headers);res=await fetch(SUPABASE_URL+path,o);}else{logout();return res;}}return res;}
 
-// ═══════════════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════════════
 async function login(){
   var email=document.getElementById('loginEmail').value.trim();
   var pass=document.getElementById('loginPassword').value;
@@ -356,33 +347,28 @@ function logout(){clearSession();document.getElementById('loginOverlay').style.d
 function showApp(){
   document.getElementById('loginOverlay').style.display='none';
   document.getElementById('app').style.display='grid';
-  if(_user&&_user.email){
-    var name=_user.email.split('@')[0];
-    document.getElementById('uName').textContent=name;
-    document.getElementById('uAvatar').textContent=name[0].toUpperCase();
-  }
+  if(_user&&_user.email){var name=_user.email.split('@')[0];document.getElementById('uName').textContent=name;document.getElementById('uAvatar').textContent=name[0].toUpperCase();}
 }
 
-// ═══════════════════════════════════════════════════════════════
-// NAV
-// ═══════════════════════════════════════════════════════════════
-var CRUMBS = { dashboard:'Dashboard', bodegas:'Bodegas', clientes:'Clientes', contratos:'Contratos', ocupaciones:'Ocupaciones', proyeccion:'Proyección' };
+var CRUMBS={dashboard:'Dashboard',bodegas:'Bodegas',clientes:'Clientes',contratos:'Contratos',ocupaciones:'Ocupaciones',proyeccion:'Proyección'};
 function navTo(page){
   document.querySelectorAll('.sb-item').forEach(function(t){t.classList.toggle('active',t.getAttribute('data-page')===page);});
-  document.getElementById('crumb').textContent = CRUMBS[page] || page;
+  document.getElementById('crumb').textContent=CRUMBS[page]||page;
   var pages={dashboard:renderDashboard,bodegas:renderBodegas,clientes:renderClientes,contratos:renderContratos,ocupaciones:renderOcupaciones,proyeccion:renderProyeccion};
   if(pages[page])pages[page]();
 }
 function toast(msg,type){var el=document.getElementById('toast');el.textContent=msg;el.className='toast show '+(type||'success');setTimeout(function(){el.className='toast';},3000);}
 function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
 function openModal(title,body,footer){document.getElementById('modalTitle').textContent=title;document.getElementById('modalBody').innerHTML=body;document.getElementById('modalFooter').innerHTML=footer||'';document.getElementById('modalOverlay').classList.add('open');}
-function fmt(n){return(parseFloat(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function fmtInt(n){return Math.round(parseFloat(n)||0).toLocaleString('es-ES');}
+
+// ═══ Formato US: 1,234.56 ═══
+function fmt(n){return(parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtInt(n){return Math.round(parseFloat(n)||0).toLocaleString('en-US');}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 async function confirmar(msg){return new Promise(function(resolve){openModal('Confirmar','<p style="color:var(--text2);line-height:1.6;">'+esc(msg)+'</p>','<button class="btn-ghost" onclick="closeModal();window._confRes(false);">Cancelar</button><button class="btn-danger" onclick="closeModal();window._confRes(true);">Eliminar</button>');window._confRes=resolve;});}
 
 // ═══════════════════════════════════════════════════════════════
-// DASHBOARD
+// DASHBOARD — dividido por tipo (Almacenes / Predios)
 // ═══════════════════════════════════════════════════════════════
 async function renderDashboard(){
   document.getElementById('mainArea').innerHTML='<div class="loading">Cargando dashboard...</div>';
@@ -390,88 +376,158 @@ async function renderDashboard(){
     var [rB,rCB,rC,rCli]=await Promise.all([
       sbFetch('/rest/v1/bodegas?select=*&order=nombre.asc&limit=10000'),
       sbFetch('/rest/v1/contrato_bodegas?select=*&limit=10000'),
-      sbFetch('/rest/v1/contratos?select=id,codigo,activo&limit=10000'),
+      sbFetch('/rest/v1/contratos?select=*&limit=10000'),
       sbFetch('/rest/v1/clientes_almacen?select=id&limit=1',{headers:{'Prefer':'count=exact','Range':'0-0'}})
     ]);
     var bodegas=await rB.json();if(!Array.isArray(bodegas))bodegas=[];
     var cb=await rCB.json();if(!Array.isArray(cb))cb=[];
     var contratos=await rC.json();if(!Array.isArray(contratos))contratos=[];
-    var cliHdr=rCli.headers.get('Content-Range');var totalCli=cliHdr?parseInt(cliHdr.split('/')[1])||0:0;
     var contMap={};contratos.forEach(function(c){contMap[c.id]=c;});
-    var totalCon=contratos.filter(function(c){return c.activo!==false;}).length;
     var bodMap={};bodegas.forEach(function(b){bodMap[b.id]=b;});
     var activosCB=cb.filter(function(r){var c=contMap[r.contrato_id];return c&&c.activo!==false;});
-    console.log('[Dashboard] Bodegas:',bodegas.length,'| Contratos:',contratos.length,'| CB activos:',activosCB.length);
-    bodegas.forEach(function(b){var u=activosCB.filter(function(r){return r.bodega_id===b.id;}).reduce(function(a,r){return a+parseFloat(r.mts2||0);},0);console.log('  '+b.nombre+' — Tot:'+b.mts2_totales+' Util:'+u+' Disp:'+((b.mts2_totales||0)-u));});
-    var totalMts2=bodegas.reduce(function(a,b){return a+parseFloat(b.mts2_totales||0);},0);
-    var mts2Util=activosCB.reduce(function(a,r){return a+parseFloat(r.mts2||0);},0);
-    var mts2Disp=totalMts2-mts2Util;
-    var valAlq=activosCB.reduce(function(a,r){var b=bodMap[r.bodega_id];return a+(parseFloat(r.mts2||0)*(b?parseFloat(b.valor_m2_alquiler||0):0));},0);
-    var valVta=activosCB.reduce(function(a,r){return a+(parseFloat(r.mts2||0)*parseFloat(r.valor_m2||0));},0);
-    var utilidad=valVta-valAlq;
-    var ocupPct=totalMts2>0?Math.round((mts2Util/totalMts2)*100):0;
 
-    var floorHtml = bodegas.map(function(b){
-      var util = activosCB.filter(function(r){return r.bodega_id===b.id;}).reduce(function(a,r){return a+parseFloat(r.mts2||0);},0);
-      var tot = parseFloat(b.mts2_totales||0);
-      var pct = tot>0 ? Math.round((util/tot)*100) : 0;
-      var estado = pct>=90 ? 'red' : pct>=60 ? 'yellow' : 'green';
-      var fillH = Math.min(pct, 100);
-      return '<div class="floor-cell '+estado+'" onclick="verDetalleBodega('+b.id+')">'+
-        '<div class="floor-fill" style="height:'+fillH+'%;"></div>'+
-        '<div class="floor-content">'+
-          '<div class="floor-name">'+esc(b.nombre)+'</div>'+
-          '<div class="floor-loc">'+esc(b.ubicacion||'—')+'</div>'+
-          '<div class="floor-pct">'+pct+'%</div>'+
-          '<div class="floor-stats"><span>'+fmtInt(util)+' m² usados</span><span>'+fmtInt(tot-util)+' m² libres</span></div>'+
-          '<div class="floor-bar"><div class="floor-bar-fill" style="width:'+fillH+'%;"></div></div>'+
+    // ═══ Cálculo de contratos: activos / vencidos / por vencer 90d ═══
+    var hoy=new Date();hoy.setHours(0,0,0,0);
+    var en90=new Date();en90.setHours(0,0,0,0);en90.setDate(en90.getDate()+90);
+    var contActivos=0,contPorVencer=0,contVencidos=0;
+    contratos.forEach(function(c){
+      if(c.activo===false)return;
+      var fin=c.fecha_fin?new Date(c.fecha_fin):null;
+      if(fin){fin.setHours(0,0,0,0);}
+      if(fin && fin < hoy){contVencidos++;}
+      else if(fin && fin <= en90){contPorVencer++;contActivos++;}
+      else{contActivos++;}
+    });
+
+    // ═══ Función para calcular métricas por tipo ═══
+    function metricasPorTipo(tipo){
+      var bods=bodegas.filter(function(b){return (b.tipo||'almacen')===tipo;});
+      var bodIds={};bods.forEach(function(b){bodIds[b.id]=true;});
+      var totalMts2=bods.reduce(function(a,b){return a+parseFloat(b.mts2_totales||0);},0);
+      var cbTipo=activosCB.filter(function(r){return bodIds[r.bodega_id];});
+      var mts2Util=cbTipo.reduce(function(a,r){return a+parseFloat(r.mts2||0);},0);
+      var mts2Disp=totalMts2-mts2Util;
+      var costoAlq=cbTipo.reduce(function(a,r){var b=bodMap[r.bodega_id];return a+(parseFloat(r.mts2||0)*(b?parseFloat(b.valor_m2_alquiler||0):0));},0);
+      var ingresos=cbTipo.reduce(function(a,r){return a+(parseFloat(r.mts2||0)*parseFloat(r.valor_m2||0));},0);
+      // Clientes únicos con CB en este tipo
+      var cliSet={};
+      cbTipo.forEach(function(r){var c=contMap[r.contrato_id];if(c&&c.cliente_id)cliSet[c.cliente_id]=true;});
+      // Contratos únicos con CB en este tipo
+      var contSet={};
+      cbTipo.forEach(function(r){contSet[r.contrato_id]=true;});
+      return {
+        cantidad: bods.length,
+        totalMts2: totalMts2,
+        mts2Util: mts2Util,
+        mts2Disp: mts2Disp,
+        costoAlq: costoAlq,
+        ingresos: ingresos,
+        utilidad: ingresos-costoAlq,
+        clientes: Object.keys(cliSet).length,
+        contratos: Object.keys(contSet).length
+      };
+    }
+
+    var almc=metricasPorTipo('almacen');
+    var prds=metricasPorTipo('predio');
+
+    // ═══ KPI Section builder ═══
+    function kpiSection(m, isPredio){
+      return '<div class="kpi-grid">'+
+        '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('ruler')+'</div></div><div class="kpi-val">'+fmtInt(m.totalMts2)+'</div><div class="kpi-lbl">M² Totales</div></div>'+
+        '<div class="kpi purple"><div class="kpi-head"><div class="kpi-icon">'+ico('package')+'</div></div><div class="kpi-val">'+fmtInt(m.mts2Util)+'</div><div class="kpi-lbl">M² Utilizados</div></div>'+
+        '<div class="kpi green"><div class="kpi-head"><div class="kpi-icon">'+ico('check')+'</div></div><div class="kpi-val">'+fmtInt(m.mts2Disp)+'</div><div class="kpi-lbl">M² Disponibles</div></div>'+
+        '<div class="kpi red"><div class="kpi-head"><div class="kpi-icon">'+ico('cash')+'</div></div><div class="kpi-val">$'+fmt(m.costoAlq)+'</div><div class="kpi-lbl">Costo Alquiler</div></div>'+
+        '<div class="kpi"><div class="kpi-head"><div class="kpi-icon">'+ico('cash')+'</div></div><div class="kpi-val">$'+fmt(m.ingresos)+'</div><div class="kpi-lbl">Ingreso Venta</div></div>'+
+        '<div class="kpi yellow"><div class="kpi-head"><div class="kpi-icon">'+ico('trend')+'</div></div><div class="kpi-val">$'+fmt(m.utilidad)+'</div><div class="kpi-lbl">Utilidad Mensual</div></div>'+
+        '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('users')+'</div></div><div class="kpi-val">'+fmtInt(m.clientes)+'</div><div class="kpi-lbl">Clientes</div></div>'+
+        '<div class="kpi"><div class="kpi-head"><div class="kpi-icon">'+ico('contract')+'</div></div><div class="kpi-val">'+fmtInt(m.contratos)+'</div><div class="kpi-lbl">Contratos Activos</div>'+
+          '<div class="kpi-sub">'+
+            '<div class="kpi-sub-row warn"><span class="lbl">Por vencer 90d</span><span class="val">'+fmtInt(contPorVencer)+'</span></div>'+
+            '<div class="kpi-sub-row err"><span class="lbl">Vencidos</span><span class="val">'+fmtInt(contVencidos)+'</span></div>'+
+          '</div>'+
         '</div>'+
       '</div>';
-    }).join('');
+    }
+
+    // ═══ Planta ═══
+    function planta(bods){
+      return bods.map(function(b){
+        var util = activosCB.filter(function(r){return r.bodega_id===b.id;}).reduce(function(a,r){return a+parseFloat(r.mts2||0);},0);
+        var tot = parseFloat(b.mts2_totales||0);
+        var pct = tot>0 ? Math.round((util/tot)*100) : 0;
+        var estado = pct>=90 ? 'red' : pct>=60 ? 'yellow' : 'green';
+        var fillH = Math.min(pct, 100);
+        var tipoLbl = (b.tipo||'almacen')==='predio' ? 'Predio' : 'Almacén';
+        return '<div class="floor-cell '+estado+'" data-tipo="'+(b.tipo||'almacen')+'" onclick="verDetalleBodega('+b.id+')">'+
+          '<span class="floor-tipo">'+tipoLbl+'</span>'+
+          '<div class="floor-fill" style="height:'+fillH+'%;"></div>'+
+          '<div class="floor-content">'+
+            '<div class="floor-name">'+esc(b.nombre)+'</div>'+
+            '<div class="floor-loc">'+esc(b.ubicacion||'—')+'</div>'+
+            '<div class="floor-pct">'+pct+'%</div>'+
+            '<div class="floor-stats"><span>'+fmtInt(util)+' m² usados</span><span>'+fmtInt(tot-util)+' m² libres</span></div>'+
+            '<div class="floor-bar"><div class="floor-bar-fill" style="width:'+fillH+'%;"></div></div>'+
+          '</div>'+
+        '</div>';
+      }).join('');
+    }
+    var almBods = bodegas.filter(function(b){return (b.tipo||'almacen')==='almacen';});
+    var prdBods = bodegas.filter(function(b){return (b.tipo||'almacen')==='predio';});
+
+    // ═══ Detalle tabla ═══
+    function detalleFilas(bods){
+      return bods.map(function(b){
+        var util=activosCB.filter(function(r){return r.bodega_id===b.id;}).reduce(function(a,r){return a+parseFloat(r.mts2||0);},0);
+        var tot=parseFloat(b.mts2_totales||0);
+        var disp=tot-util;
+        var pct=tot>0?Math.round((util/tot)*100):0;
+        var badge=pct>=90?'red':pct>=60?'yellow':'green';
+        return '<tr style="cursor:pointer;" onclick="verDetalleBodega('+b.id+')" title="Ver detalle"><td><strong>'+esc(b.nombre)+'</strong></td>'+
+          '<td>'+esc(b.ubicacion||'—')+'</td>'+
+          '<td>'+fmtInt(tot)+' m²</td>'+
+          '<td>'+fmtInt(util)+' m²</td>'+
+          '<td>'+fmtInt(disp)+' m²</td>'+
+          '<td>$'+fmt(b.valor_m2_alquiler||0)+'</td>'+
+          '<td><span class="badge badge-'+badge+'">'+pct+'%</span></td></tr>';
+      }).join('');
+    }
 
     document.getElementById('mainArea').innerHTML =
       '<div class="page-header">'+
         '<div><div class="page-title">'+ico('dashboard','ico-lg')+' Dashboard</div>'+
         '<div class="page-sub">Panorama general del centro de distribución</div></div>'+
       '</div>'+
-      '<div class="kpi-grid">'+
-        '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('ruler')+'</div></div><div class="kpi-val">'+fmtInt(totalMts2)+'</div><div class="kpi-lbl">M² Totales</div></div>'+
-        '<div class="kpi purple"><div class="kpi-head"><div class="kpi-icon">'+ico('package')+'</div></div><div class="kpi-val">'+fmtInt(mts2Util)+'</div><div class="kpi-lbl">M² Utilizados</div></div>'+
-        '<div class="kpi green"><div class="kpi-head"><div class="kpi-icon">'+ico('check')+'</div></div><div class="kpi-val">'+fmtInt(mts2Disp)+'</div><div class="kpi-lbl">M² Disponibles</div></div>'+
-        '<div class="kpi red"><div class="kpi-head"><div class="kpi-icon">'+ico('cash')+'</div></div><div class="kpi-val">$'+fmt(valAlq)+'</div><div class="kpi-lbl">Costo Alquiler</div></div>'+
-        '<div class="kpi"><div class="kpi-head"><div class="kpi-icon">'+ico('cash')+'</div></div><div class="kpi-val">$'+fmt(valVta)+'</div><div class="kpi-lbl">Ingresos Venta</div></div>'+
-        '<div class="kpi yellow"><div class="kpi-head"><div class="kpi-icon">'+ico('trend')+'</div></div><div class="kpi-val">$'+fmt(utilidad)+'</div><div class="kpi-lbl">Utilidad Mensual</div></div>'+
-        '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('users')+'</div></div><div class="kpi-val">'+fmtInt(totalCli)+'</div><div class="kpi-lbl">Clientes</div></div>'+
-        '<div class="kpi"><div class="kpi-head"><div class="kpi-icon">'+ico('contract')+'</div></div><div class="kpi-val">'+fmtInt(totalCon)+'</div><div class="kpi-lbl">Contratos Activos</div></div>'+
+      // ALMACENES
+      '<div class="section-divider">'+
+        '<div class="section-divider-title">'+ico('warehouse')+' Almacenes</div>'+
+        '<div class="section-divider-count">'+almc.cantidad+' unidades</div>'+
+        '<div class="section-divider-line"></div>'+
       '</div>'+
+      kpiSection(almc, false)+
+      // PREDIOS
+      '<div class="section-divider">'+
+        '<div class="section-divider-title">'+ico('land')+' Predios</div>'+
+        '<div class="section-divider-count">'+prds.cantidad+' unidades</div>'+
+        '<div class="section-divider-line"></div>'+
+      '</div>'+
+      kpiSection(prds, true)+
+      // PLANTA
       '<div class="card">'+
-        '<div class="card-header"><h3>'+ico('warehouse')+' Planta del Centro de Distribución</h3><span class="count">'+bodegas.length+' bodegas · '+ocupPct+'% ocupación global · Click para detalle</span></div>'+
-        '<div class="floor-grid">'+floorHtml+'</div>'+
+        '<div class="card-header"><h3>'+ico('warehouse')+' Planta del Centro de Distribución</h3><span class="count">'+bodegas.length+' bodegas · Click para detalle</span></div>'+
+        (almBods.length>0 ? '<div style="padding:12px 16px 0;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;">Almacenes</div><div class="floor-grid">'+planta(almBods)+'</div>' : '')+
+        (prdBods.length>0 ? '<div style="padding:12px 16px 0;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;border-top:1px solid var(--border);margin-top:8px;">Predios</div><div class="floor-grid">'+planta(prdBods)+'</div>' : '')+
       '</div>'+
+      // DETALLE
       '<div class="card">'+
         '<div class="card-header"><h3>'+ico('chart')+' Detalle por Bodega</h3></div>'+
         '<div class="table-wrap"><table><thead><tr><th>Bodega</th><th>Ubicación</th><th>Total M²</th><th>Utilizados</th><th>Disponibles</th><th>Valor/m²</th><th>Ocupación</th></tr></thead><tbody>'+
-        bodegas.map(function(b){
-          var util=activosCB.filter(function(r){return r.bodega_id===b.id;}).reduce(function(a,r){return a+parseFloat(r.mts2||0);},0);
-          var tot=parseFloat(b.mts2_totales||0);
-          var disp=tot-util;
-          var pct=tot>0?Math.round((util/tot)*100):0;
-          var badge=pct>=90?'red':pct>=60?'yellow':'green';
-          return '<tr style="cursor:pointer;" onclick="verDetalleBodega('+b.id+')" title="Ver contratos de esta bodega"><td><strong>'+esc(b.nombre)+'</strong></td>'+
-            '<td>'+esc(b.ubicacion||'—')+'</td>'+
-            '<td>'+fmtInt(tot)+' m²</td>'+
-            '<td>'+fmtInt(util)+' m²</td>'+
-            '<td>'+fmtInt(disp)+' m²</td>'+
-            '<td>$'+fmt(b.valor_m2_alquiler||0)+'</td>'+
-            '<td><span class="badge badge-'+badge+'">'+pct+'%</span></td></tr>';
-        }).join('')+
+        detalleFilas(bodegas)+
         '</tbody></table></div></div>';
   }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error cargando datos</div>';}
 }
 
-// ═══════════════════════════════════════════════════════════════
-// DETALLE DE BODEGA (auditoría)
-// ═══════════════════════════════════════════════════════════════
+// ═══ DETALLE BODEGA ═══
 async function verDetalleBodega(bodegaId){
   try{
     var [rB,rCB,rC,rCli]=await Promise.all([
@@ -491,11 +547,11 @@ async function verDetalleBodega(bodegaId){
     var body='<div style="margin-bottom:14px;padding:12px;background:var(--bg-elev);border-radius:8px;">'+
       '<div style="font-size:11px;color:var(--text2);margin-bottom:2px;">Capacidad total</div>'+
       '<div style="font-size:18px;font-weight:700;">'+fmtInt(tot)+' m²</div>'+
-      '<div style="font-size:11px;color:var(--text2);margin:10px 0 2px;">Ocupación real (contratos activos o sin estado)</div>'+
+      '<div style="font-size:11px;color:var(--text2);margin:10px 0 2px;">Ocupación real (activos o sin estado)</div>'+
       '<div style="font-size:18px;font-weight:700;color:'+(totalOcup>tot?'var(--red)':'var(--green)')+';">'+fmtInt(totalOcup)+' m²</div>'+
       (totalOcup>tot?'<div style="color:var(--red);font-size:11px;margin-top:6px;">⚠ SOBREPASADO por '+fmtInt(totalOcup-tot)+' m²</div>':'')+
       '</div>'+
-      '<h4 style="margin-bottom:10px;font-size:12px;">Contratos con m² asignados ('+cbs.length+')</h4>'+
+      '<h4 style="margin-bottom:10px;font-size:12px;">Contratos asignados ('+cbs.length+')</h4>'+
       '<div class="table-wrap"><table><thead><tr><th>Contrato</th><th>Cliente</th><th>Estado</th><th>Vigencia</th><th>M²</th><th>$/m²</th><th>Total</th></tr></thead><tbody>'+
       (cbs.length===0?'<tr><td colspan="7" class="empty">Sin registros</td></tr>':
       cbs.map(function(r){
@@ -503,8 +559,8 @@ async function verDetalleBodega(bodegaId){
         var cli=cliMap[c.cliente_id]||{};
         var estCls=c.activo===true?'badge-green':c.activo===false?'badge-red':'badge-yellow';
         var estTxt=c.activo===true?'Activo':c.activo===false?'Inactivo':'Sin estado';
-        var ini=c.fecha_inicio?new Date(c.fecha_inicio).toLocaleDateString('es-ES'):'—';
-        var fin=c.fecha_fin?new Date(c.fecha_fin).toLocaleDateString('es-ES'):'—';
+        var ini=c.fecha_inicio?new Date(c.fecha_inicio).toLocaleDateString('en-US'):'—';
+        var fin=c.fecha_fin?new Date(c.fecha_fin).toLocaleDateString('en-US'):'—';
         var subT=parseFloat(r.mts2||0)*parseFloat(r.valor_m2||0);
         return '<tr><td><strong>'+esc(c.codigo||'ID '+r.contrato_id)+'</strong></td>'+
           '<td>'+esc(cli.razon_social||'—')+'</td>'+
@@ -519,9 +575,7 @@ async function verDetalleBodega(bodegaId){
   }catch(e){toast('Error: '+e.message,'error');}
 }
 
-// ═══════════════════════════════════════════════════════════════
-// BODEGAS
-// ═══════════════════════════════════════════════════════════════
+// ═══ BODEGAS ═══
 async function renderBodegas(){
   document.getElementById('mainArea').innerHTML='<div class="loading">Cargando...</div>';
   try{
@@ -530,15 +584,17 @@ async function renderBodegas(){
     document.getElementById('mainArea').innerHTML=
       '<div class="page-header">'+
         '<div><div class="page-title">'+ico('warehouse','ico-lg')+' Bodegas</div>'+
-        '<div class="page-sub">Gestión de almacenes del centro de distribución</div></div>'+
+        '<div class="page-sub">Gestión de almacenes y predios</div></div>'+
         '<button class="btn-primary" onclick="modalBodega()">'+ico('plus','ico-sm')+' Nueva bodega</button>'+
       '</div>'+
       '<div class="card">'+
         '<div class="card-header"><h3>'+ico('warehouse')+' Listado de Bodegas</h3><span class="count">'+bodegas.length+' registros</span></div>'+
-        '<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Ubicación</th><th>Total M²</th><th>Disponibles</th><th>% Pasillos</th><th>Valor/m²</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>'+
-        (bodegas.length===0?'<tr><td colspan="7" class="empty">Sin bodegas registradas</td></tr>':
+        '<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Tipo</th><th>Ubicación</th><th>Total M²</th><th>Disponibles</th><th>% Pasillos</th><th>Valor/m²</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>'+
+        (bodegas.length===0?'<tr><td colspan="8" class="empty">Sin bodegas</td></tr>':
         bodegas.map(function(b){
+          var tipo=(b.tipo||'almacen')==='predio' ? '<span class="badge" style="background:rgba(168,85,247,.15);color:var(--purple);">Predio</span>' : '<span class="badge badge-steel">Almacén</span>';
           return '<tr><td><strong>'+esc(b.nombre||'—')+'</strong></td>'+
+            '<td>'+tipo+'</td>'+
             '<td>'+esc(b.ubicacion||'—')+'</td>'+
             '<td>'+fmtInt(b.mts2_totales||0)+' m²</td>'+
             '<td>'+fmtInt(b.mts2_disponibles||0)+' m²</td>'+
@@ -550,26 +606,20 @@ async function renderBodegas(){
             '</div></td></tr>';
         }).join(''))+
         '</tbody></table></div></div>';
-  }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error cargando datos</div>';}
+  }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error</div>';}
 }
 async function modalBodega(id){
-  var b={nombre:'',ubicacion:'',mts2_totales:0,pct_pasillos:15,mts2_disponibles:0,valor_m2_alquiler:0};
+  var b={nombre:'',tipo:'almacen',ubicacion:'',mts2_totales:0,pct_pasillos:15,mts2_disponibles:0,valor_m2_alquiler:0};
   if(id){var res=await sbFetch('/rest/v1/bodegas?id=eq.'+id);var d=await res.json();if(d&&d[0])b=d[0];}
   openModal(id?'Editar Bodega':'Nueva Bodega',
-    '<div class="form-field"><label>Nombre *</label><input id="bNombre" value="'+esc(b.nombre)+'"/></div>'+
+    '<div class="form-row"><div><label>Nombre *</label><input id="bNombre" value="'+esc(b.nombre)+'"/></div><div><label>Tipo *</label><select id="bTipo"><option value="almacen"'+((b.tipo||'almacen')==='almacen'?' selected':'')+'>Almacén</option><option value="predio"'+(b.tipo==='predio'?' selected':'')+'>Predio</option></select></div></div>'+
     '<div class="form-field"><label>Ubicación</label><input id="bUbic" value="'+esc(b.ubicacion)+'"/></div>'+
-    '<div class="form-row">'+
-      '<div><label>Total M² *</label><input id="bTotal" type="number" step="0.01" value="'+(b.mts2_totales||0)+'"/></div>'+
-      '<div><label>% Pasillos</label><input id="bPct" type="number" step="0.01" value="'+(b.pct_pasillos||0)+'"/></div>'+
-    '</div>'+
-    '<div class="form-row">'+
-      '<div><label>M² Disponibles</label><input id="bDisp" type="number" step="0.01" value="'+(b.mts2_disponibles||0)+'"/></div>'+
-      '<div><label>Valor $ / m²</label><input id="bVal" type="number" step="0.01" value="'+(b.valor_m2_alquiler||0)+'"/></div>'+
-    '</div>',
+    '<div class="form-row"><div><label>Total M² *</label><input id="bTotal" type="number" step="0.01" value="'+(b.mts2_totales||0)+'"/></div><div><label>% Pasillos</label><input id="bPct" type="number" step="0.01" value="'+(b.pct_pasillos||0)+'"/></div></div>'+
+    '<div class="form-row"><div><label>M² Disponibles</label><input id="bDisp" type="number" step="0.01" value="'+(b.mts2_disponibles||0)+'"/></div><div><label>Valor $ / m²</label><input id="bVal" type="number" step="0.01" value="'+(b.valor_m2_alquiler||0)+'"/></div></div>',
     '<button class="btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn-primary" onclick="guardarBodega('+(id||0)+')">Guardar</button>');
 }
 async function guardarBodega(id){
-  var rec={nombre:document.getElementById('bNombre').value.trim(),ubicacion:document.getElementById('bUbic').value.trim()||null,mts2_totales:parseFloat(document.getElementById('bTotal').value)||0,pct_pasillos:parseFloat(document.getElementById('bPct').value)||0,mts2_disponibles:parseFloat(document.getElementById('bDisp').value)||0,valor_m2_alquiler:parseFloat(document.getElementById('bVal').value)||0};
+  var rec={nombre:document.getElementById('bNombre').value.trim(),tipo:document.getElementById('bTipo').value,ubicacion:document.getElementById('bUbic').value.trim()||null,mts2_totales:parseFloat(document.getElementById('bTotal').value)||0,pct_pasillos:parseFloat(document.getElementById('bPct').value)||0,mts2_disponibles:parseFloat(document.getElementById('bDisp').value)||0,valor_m2_alquiler:parseFloat(document.getElementById('bVal').value)||0};
   if(!rec.nombre){toast('Nombre requerido','error');return;}
   var res=await sbFetch('/rest/v1/bodegas'+(id?'?id=eq.'+id:''),{method:id?'PATCH':'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(rec)});
   if(!res.ok){var e=await res.json();toast('Error: '+(e.message||res.status),'error');return;}
@@ -582,9 +632,7 @@ async function eliminarBodega(id){
   toast('Bodega eliminada');renderBodegas();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// CLIENTES
-// ═══════════════════════════════════════════════════════════════
+// ═══ CLIENTES ═══
 async function renderClientes(){
   document.getElementById('mainArea').innerHTML='<div class="loading">Cargando...</div>';
   try{
@@ -599,7 +647,7 @@ async function renderClientes(){
       '<div class="card">'+
         '<div class="card-header"><h3>'+ico('users')+' Listado de Clientes</h3><span class="count">'+clientes.length+' registros</span></div>'+
         '<div class="table-wrap"><table><thead><tr><th>Código</th><th>Razón Social</th><th>NIT</th><th>Dirección</th><th>Correo</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>'+
-        (clientes.length===0?'<tr><td colspan="6" class="empty">Sin clientes registrados</td></tr>':
+        (clientes.length===0?'<tr><td colspan="6" class="empty">Sin clientes</td></tr>':
         clientes.map(function(c){
           return '<tr><td><strong>'+esc(c.codigo||'—')+'</strong></td>'+
             '<td>'+esc(c.razon_social||'—')+'</td>'+
@@ -612,7 +660,7 @@ async function renderClientes(){
             '</div></td></tr>';
         }).join(''))+
         '</tbody></table></div></div>';
-  }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error cargando datos</div>';}
+  }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error</div>';}
 }
 async function modalCliente(id){
   var c={codigo:'',razon_social:'',nit:'',direccion:'',correo:''};
@@ -639,9 +687,7 @@ async function eliminarCliente(id){
   toast('Cliente eliminado');renderClientes();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// CONTRATOS
-// ═══════════════════════════════════════════════════════════════
+// ═══ CONTRATOS ═══
 async function renderContratos(){
   document.getElementById('mainArea').innerHTML='<div class="loading">Cargando...</div>';
   try{
@@ -652,6 +698,8 @@ async function renderContratos(){
     var contratos=await rC.json();if(!Array.isArray(contratos))contratos=[];
     var contBod=await rCB.json();if(!Array.isArray(contBod))contBod=[];
     var bodPor={};contBod.forEach(function(cb){(bodPor[cb.contrato_id]=bodPor[cb.contrato_id]||[]).push(cb);});
+    var hoy=new Date();hoy.setHours(0,0,0,0);
+    var en90=new Date();en90.setHours(0,0,0,0);en90.setDate(en90.getDate()+90);
     document.getElementById('mainArea').innerHTML=
       '<div class="page-header">'+
         '<div><div class="page-title">'+ico('contract','ico-lg')+' Contratos</div>'+
@@ -667,9 +715,15 @@ async function renderContratos(){
           var totM=lin.reduce(function(a,l){return a+parseFloat(l.mts2||0);},0);
           var renta=lin.reduce(function(a,l){return a+(parseFloat(l.mts2||0)*parseFloat(l.valor_m2||0));},0);
           var nombres=lin.map(function(l){return l.bodegas&&l.bodegas.nombre;}).filter(Boolean).join(', ');
-          var estado=c.activo?'<span class="badge badge-green">Activo</span>':'<span class="badge badge-red">Inactivo</span>';
-          var ini=c.fecha_inicio?new Date(c.fecha_inicio).toLocaleDateString('es-ES'):'—';
-          var fin=c.fecha_fin?new Date(c.fecha_fin).toLocaleDateString('es-ES'):'—';
+          var fin=c.fecha_fin?new Date(c.fecha_fin):null;
+          if(fin)fin.setHours(0,0,0,0);
+          var estado;
+          if(c.activo===false){estado='<span class="badge badge-red">Inactivo</span>';}
+          else if(fin && fin < hoy){estado='<span class="badge badge-red">Vencido</span>';}
+          else if(fin && fin <= en90){estado='<span class="badge badge-yellow">Por vencer</span>';}
+          else{estado='<span class="badge badge-green">Activo</span>';}
+          var ini=c.fecha_inicio?new Date(c.fecha_inicio).toLocaleDateString('en-US'):'—';
+          var finT=c.fecha_fin?new Date(c.fecha_fin).toLocaleDateString('en-US'):'—';
           var cli=c.clientes_almacen?c.clientes_almacen.razon_social:'—';
           return '<tr><td><strong>'+esc(c.codigo||'—')+'</strong></td>'+
             '<td>'+esc(cli)+'</td>'+
@@ -677,7 +731,7 @@ async function renderContratos(){
             '<td>'+fmtInt(totM)+' m²</td>'+
             '<td>$'+fmt(renta)+'</td>'+
             '<td>'+ini+'</td>'+
-            '<td>'+fin+'</td>'+
+            '<td>'+finT+'</td>'+
             '<td>'+estado+'</td>'+
             '<td><div class="actions">'+
               '<button class="btn-ghost btn-icon" onclick="modalContrato('+c.id+')" title="Editar">'+ico('edit','ico-sm')+'</button>'+
@@ -685,7 +739,7 @@ async function renderContratos(){
             '</div></td></tr>';
         }).join(''))+
         '</tbody></table></div></div>';
-  }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error cargando datos</div>';}
+  }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error</div>';}
 }
 async function modalContrato(id){
   var c={codigo:'',cliente_id:null,fecha_inicio:'',fecha_fin:'',activo:true,observaciones:''};
@@ -727,16 +781,14 @@ async function guardarContrato(id){
   toast(id?'Contrato actualizado':'Contrato creado');closeModal();renderContratos();
 }
 async function eliminarContrato(id){
-  if(!(await confirmar('¿Eliminar este contrato y sus bodegas asignadas?')))return;
+  if(!(await confirmar('¿Eliminar este contrato?')))return;
   await sbFetch('/rest/v1/contrato_bodegas?contrato_id=eq.'+id,{method:'DELETE'});
   var res=await sbFetch('/rest/v1/contratos?id=eq.'+id,{method:'DELETE'});
   if(!res.ok){toast('Error al eliminar','error');return;}
   toast('Contrato eliminado');renderContratos();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// OCUPACIONES
-// ═══════════════════════════════════════════════════════════════
+// ═══ OCUPACIONES ═══
 async function renderOcupaciones(){
   document.getElementById('mainArea').innerHTML='<div class="loading">Cargando...</div>';
   try{
@@ -745,17 +797,17 @@ async function renderOcupaciones(){
     document.getElementById('mainArea').innerHTML=
       '<div class="page-header">'+
         '<div><div class="page-title">'+ico('package','ico-lg')+' Ocupaciones</div>'+
-        '<div class="page-sub">Registro semanal de m² ocupados por contrato</div></div>'+
+        '<div class="page-sub">Registro semanal de m² ocupados</div></div>'+
         '<button class="btn-primary" onclick="modalOcupacion()">'+ico('plus','ico-sm')+' Registrar ocupación</button>'+
       '</div>'+
       '<div class="card">'+
         '<div class="card-header"><h3>'+ico('package')+' Últimos Registros</h3><span class="count">'+ocs.length+' registros</span></div>'+
         '<div class="table-wrap"><table><thead><tr><th>Semana</th><th>Contrato</th><th>Cliente</th><th>M² Ocupados</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>'+
-        (ocs.length===0?'<tr><td colspan="5" class="empty">Sin registros de ocupación</td></tr>':
+        (ocs.length===0?'<tr><td colspan="5" class="empty">Sin registros</td></tr>':
         ocs.map(function(o){
           var ct=o.contratos||{};
           var cli=ct.clientes_almacen?ct.clientes_almacen.razon_social:'—';
-          var sem=o.semana?new Date(o.semana).toLocaleDateString('es-ES'):'—';
+          var sem=o.semana?new Date(o.semana).toLocaleDateString('en-US'):'—';
           return '<tr><td>'+sem+'</td>'+
             '<td><strong>'+esc(ct.codigo||'—')+'</strong></td>'+
             '<td>'+esc(cli)+'</td>'+
@@ -766,7 +818,7 @@ async function renderOcupaciones(){
             '</div></td></tr>';
         }).join(''))+
         '</tbody></table></div></div>';
-  }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error cargando datos</div>';}
+  }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error</div>';}
 }
 async function modalOcupacion(id){
   var o={contrato_id:null,semana:new Date().toISOString().split('T')[0],mts2_ocupados:0};
@@ -793,9 +845,7 @@ async function eliminarOcupacion(id){
   toast('Ocupación eliminada');renderOcupaciones();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// PROYECCIÓN
-// ═══════════════════════════════════════════════════════════════
+// ═══ PROYECCIÓN ═══
 async function renderProyeccion(){
   if(!window._proy){window._proy={anio:new Date().getFullYear(),vista:'consolidado',escenario:'realista'};}
   document.getElementById('mainArea').innerHTML='<div class="loading">Cargando proyección...</div>';
@@ -891,7 +941,7 @@ async function renderProyeccion(){
       html+='<td>$'+fmt(totIng)+'</td></tr></tbody></table></div></div>';
     }
     document.getElementById('mainArea').innerHTML=html;
-  }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error cargando proyección</div>';}
+  }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error</div>';}
 }
 function _proyChg(){window._proy.anio=parseInt(document.getElementById('pAnio').value);window._proy.vista=document.getElementById('pVista').value;window._proy.escenario=document.getElementById('pEsc').value;renderProyeccion();}
 function _proyGrafico(proy,meses){
@@ -900,15 +950,12 @@ function _proyGrafico(proy,meses){
   var w=900,h=280,pad=50;
   var slot=(w-pad*2)/12;var bw=slot/2-4;
   var svg='<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:280px;">';
-  for(var g=0;g<=4;g++){var y=pad+((h-pad*2)*g/4);var val=maxV*(1-g/4);svg+='<line x1="'+pad+'" y1="'+y+'" x2="'+(w-pad)+'" y2="'+y+'" stroke="rgba(148,163,184,.08)"/>';svg+='<text x="'+(pad-6)+'" y="'+(y+3)+'" text-anchor="end" fill="#64748b" font-size="9">$'+fmtInt(val)+'</text>';}
+  for(var g=0;g<=4;g++){var y=pad+((h-pad*2)*g/4);var val=maxV*(1-g/4);svg+='<line x1="'+pad+'" y1="'+y+'" x2="'+(w-pad)+'" y2="'+y+'" stroke="rgba(148,163,184,.08)"/>';svg+='<text x="'+(pad-6)+'" y="'+(y+3)+'" text-anchor="end" fill="#94a3b8" font-size="9">$'+fmtInt(val)+'</text>';}
   for(var i=0;i<12;i++){var xBase=pad+i*slot+4;var hIng=maxV>0?((h-pad*2)*proy[i].ingresos)/maxV:0;var hCos=maxV>0?((h-pad*2)*proy[i].costos)/maxV:0;svg+='<rect x="'+xBase+'" y="'+(h-pad-hIng)+'" width="'+bw+'" height="'+hIng+'" fill="#10b981" rx="2"><title>Ing '+meses[i]+': $'+fmt(proy[i].ingresos)+'</title></rect>';svg+='<rect x="'+(xBase+bw+2)+'" y="'+(h-pad-hCos)+'" width="'+bw+'" height="'+hCos+'" fill="#ef4444" rx="2"><title>Cos '+meses[i]+': $'+fmt(proy[i].costos)+'</title></rect>';svg+='<text x="'+(xBase+bw)+'" y="'+(h-pad+16)+'" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">'+meses[i]+'</text>';}
   svg+='</svg>';
   return '<div class="card"><div class="card-header"><h3>'+ico('chart')+' Ingresos vs Costos por Mes</h3><span class="count"><span style="color:#10b981;font-weight:700;">■</span> Ingresos &nbsp; <span style="color:#ef4444;font-weight:700;">■</span> Costo</span></div><div style="padding:16px;overflow-x:auto;">'+svg+'</div></div>';
 }
 
-// ═══════════════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════════════
 window.addEventListener('load',function(){if(loadSession()){showApp();startRefreshInterval();navTo('dashboard');}else{document.getElementById('loginOverlay').style.display='flex';document.getElementById('app').style.display='none';}});
 </script>
 </body>
