@@ -911,62 +911,67 @@ async function renderOcupaciones(){
     var cliMap={};clientes.forEach(function(c){cliMap[c.id]=c;});
     var activosCB=cb.filter(function(r){var c=contMap[r.contrato_id];return c&&c.activo!==false;});
 
-    // ══ Cálculo KPI 1: Ocupación por bodega ══
-    var ocupBod = bodegas.map(function(b){
-      var util = activosCB.filter(function(r){return r.bodega_id===b.id;}).reduce(function(a,r){return a+parseFloat(r.mts2||0);},0);
-      var tot = parseFloat(b.mts2_totales||0);
-      var pct = tot>0 ? (util/tot)*100 : 0;
-      return { id:b.id, nombre:b.nombre, tipo:b.tipo||'almacen', util:util, tot:tot, pct:pct };
-    }).sort(function(a,b){return b.pct-a.pct;});
+    // ══ Cálculo por cliente separado por tipo de bodega ══
+    function calcOcupClientesPorTipo(tipo){
+      var acum = {};
+      activosCB.forEach(function(r){
+        var b = bodMap[r.bodega_id];
+        if(!b || (b.tipo||'almacen') !== tipo) return;
+        var c = contMap[r.contrato_id];
+        if(!c || !c.cliente_id) return;
+        if(!acum[c.cliente_id]) acum[c.cliente_id] = { mts2:0, ingresos:0, costos:0 };
+        var mts2 = parseFloat(r.mts2||0);
+        acum[c.cliente_id].mts2 += mts2;
+        acum[c.cliente_id].ingresos += mts2 * parseFloat(r.valor_m2||0);
+        acum[c.cliente_id].costos += mts2 * parseFloat(b.valor_m2_alquiler||0);
+      });
+      return Object.keys(acum).map(function(cid){
+        var c = cliMap[cid] || {};
+        var m = acum[cid];
+        return { id:cid, razon_social:c.razon_social||'—', mts2:m.mts2, ingresos:m.ingresos, costos:m.costos, utilidad:m.ingresos-m.costos };
+      });
+    }
+    var ocupCliAlm = calcOcupClientesPorTipo('almacen');
+    var ocupCliPrd = calcOcupClientesPorTipo('predio');
+    var almPorMts2 = ocupCliAlm.slice().sort(function(a,b){return b.mts2-a.mts2;});
+    var almPorUtil = ocupCliAlm.slice().sort(function(a,b){return b.utilidad-a.utilidad;});
+    var prdPorMts2 = ocupCliPrd.slice().sort(function(a,b){return b.mts2-a.mts2;});
+    var prdPorUtil = ocupCliPrd.slice().sort(function(a,b){return b.utilidad-a.utilidad;});
+    var cliMayorAlm = almPorMts2[0] || {razon_social:'—', mts2:0};
+    var cliMayorPrd = prdPorMts2[0] || {razon_social:'—', mts2:0};
+    var cliRentAlm = almPorUtil[0] || {razon_social:'—', utilidad:0};
+    var cliRentPrd = prdPorUtil[0] || {razon_social:'—', utilidad:0};
 
-    // ══ Cálculo KPI 2: Ocupación por cliente (m² totales) ══
-    var ocupCliMap = {};
-    activosCB.forEach(function(r){
-      var c = contMap[r.contrato_id];
-      if(!c || !c.cliente_id) return;
-      if(!ocupCliMap[c.cliente_id]) ocupCliMap[c.cliente_id] = { mts2:0, ingresos:0, costos:0 };
-      var mts2 = parseFloat(r.mts2||0);
-      var b = bodMap[r.bodega_id];
-      ocupCliMap[c.cliente_id].mts2 += mts2;
-      ocupCliMap[c.cliente_id].ingresos += mts2 * parseFloat(r.valor_m2||0);
-      ocupCliMap[c.cliente_id].costos += mts2 * (b?parseFloat(b.valor_m2_alquiler||0):0);
-    });
-    var ocupCli = Object.keys(ocupCliMap).map(function(cid){
-      var c = cliMap[cid] || {};
-      var m = ocupCliMap[cid];
-      return { id:cid, razon_social:c.razon_social||'—', mts2:m.mts2, ingresos:m.ingresos, costos:m.costos, utilidad:m.ingresos-m.costos };
-    });
-    var ocupCliPorMts2 = ocupCli.slice().sort(function(a,b){return b.mts2-a.mts2;});
-    var ocupCliPorUtil = ocupCli.slice().sort(function(a,b){return b.utilidad-a.utilidad;});
+    var kpisHtml = 
+      '<div class="section-divider">'+
+        '<div class="section-divider-title">'+ico('warehouse')+' Almacenes</div>'+
+        '<div class="section-divider-line"></div>'+
+      '</div>'+
+      '<div class="kpi-grid">'+
+        '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('users')+'</div></div><div class="kpi-val" style="font-size:15px;">'+esc(cliMayorAlm.razon_social)+'</div><div class="kpi-lbl">Mayor ocupación · '+fmtInt(cliMayorAlm.mts2)+' m²</div></div>'+
+        '<div class="kpi yellow"><div class="kpi-head"><div class="kpi-icon">'+ico('trend')+'</div></div><div class="kpi-val" style="font-size:15px;">'+esc(cliRentAlm.razon_social)+'</div><div class="kpi-lbl">Más rentable · $'+fmt(cliRentAlm.utilidad||0)+'</div></div>'+
+      '</div>'+
+      '<div class="section-divider">'+
+        '<div class="section-divider-title">'+ico('land')+' Predios</div>'+
+        '<div class="section-divider-line"></div>'+
+      '</div>'+
+      '<div class="kpi-grid">'+
+        '<div class="kpi purple"><div class="kpi-head"><div class="kpi-icon">'+ico('users')+'</div></div><div class="kpi-val" style="font-size:15px;">'+esc(cliMayorPrd.razon_social)+'</div><div class="kpi-lbl">Mayor ocupación · '+fmtInt(cliMayorPrd.mts2)+' m²</div></div>'+
+        '<div class="kpi yellow"><div class="kpi-head"><div class="kpi-icon">'+ico('trend')+'</div></div><div class="kpi-val" style="font-size:15px;">'+esc(cliRentPrd.razon_social)+'</div><div class="kpi-lbl">Más rentable · $'+fmt(cliRentPrd.utilidad||0)+'</div></div>'+
+      '</div>';
 
-    // ══ KPI 3 y 4 ══
-    var cliMayorOcup = ocupCliPorMts2[0] || {razon_social:'—', mts2:0};
-    var cliMasRent = ocupCliPorUtil[0] || {razon_social:'—', utilidad:0};
-
-    var kpisHtml = '<div class="kpi-grid">'+
-      '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('warehouse')+'</div></div><div class="kpi-val" style="font-size:16px;">'+esc((ocupBod[0]||{}).nombre||'—')+'</div><div class="kpi-lbl">Bodega más ocupada · '+Math.round((ocupBod[0]||{}).pct||0)+'%</div></div>'+
-      '<div class="kpi purple"><div class="kpi-head"><div class="kpi-icon">'+ico('package')+'</div></div><div class="kpi-val">'+fmtInt(ocupCli.reduce(function(a,c){return a+c.mts2;},0))+'</div><div class="kpi-lbl">M² totales por clientes</div></div>'+
-      '<div class="kpi"><div class="kpi-head"><div class="kpi-icon">'+ico('users')+'</div></div><div class="kpi-val" style="font-size:15px;">'+esc(cliMayorOcup.razon_social)+'</div><div class="kpi-lbl">Mayor ocupación · '+fmtInt(cliMayorOcup.mts2)+' m²</div></div>'+
-      '<div class="kpi yellow"><div class="kpi-head"><div class="kpi-icon">'+ico('trend')+'</div></div><div class="kpi-val" style="font-size:15px;">'+esc(cliMasRent.razon_social)+'</div><div class="kpi-lbl">Más rentable · $'+fmt(cliMasRent.utilidad||0)+'</div></div>'+
-    '</div>';
-
-    // Tabla ranking bodegas
-    var rankBodHtml = '<div class="card"><div class="card-header"><h3>'+ico('warehouse')+' Ranking Ocupación por Bodega</h3><span class="count">'+bodegas.length+' bodegas</span></div>'+
-      '<div class="table-wrap"><table><thead><tr><th>#</th><th>Bodega</th><th>Tipo</th><th>Utilizados</th><th>Capacidad</th><th>% Ocupación</th></tr></thead><tbody>'+
-      ocupBod.map(function(b,i){
-        var badge=b.pct>=90?'red':b.pct>=60?'yellow':'green';
-        var tipoLbl = b.tipo==='predio'?'<span class="badge" style="background:rgba(168,85,247,.15);color:var(--purple);">Predio</span>':'<span class="badge badge-steel">Almacén</span>';
-        return '<tr><td><strong>'+(i+1)+'</strong></td><td><strong>'+esc(b.nombre)+'</strong></td><td>'+tipoLbl+'</td><td>'+fmtInt(b.util)+' m²</td><td>'+fmtInt(b.tot)+' m²</td><td><span class="badge badge-'+badge+'">'+Math.round(b.pct)+'%</span></td></tr>';
-      }).join('')+
-      '</tbody></table></div></div>';
-
-    // Tabla ranking clientes
-    var rankCliHtml = '<div class="card"><div class="card-header"><h3>'+ico('users')+' Ranking Clientes por Ocupación</h3><span class="count">'+ocupCli.length+' clientes</span></div>'+
-      '<div class="table-wrap"><table><thead><tr><th>#</th><th>Cliente</th><th>M² Totales</th><th>Ingresos</th><th>Costos</th><th>Utilidad</th></tr></thead><tbody>'+
-      ocupCliPorMts2.map(function(c,i){
-        return '<tr><td><strong>'+(i+1)+'</strong></td><td><strong>'+esc(c.razon_social)+'</strong></td><td>'+fmtInt(c.mts2)+' m²</td><td style="color:var(--green);">$'+fmt(c.ingresos)+'</td><td style="color:var(--red);">$'+fmt(c.costos)+'</td><td style="font-weight:700;">$'+fmt(c.utilidad)+'</td></tr>';
-      }).join('')+
-      '</tbody></table></div></div>';
+    // Tablas ranking clientes por tipo
+    function tablaRankCli(titulo, iconoNombre, lista){
+      return '<div class="card"><div class="card-header"><h3>'+ico(iconoNombre)+' '+titulo+'</h3><span class="count">'+lista.length+' clientes</span></div>'+
+        '<div class="table-wrap"><table><thead><tr><th>#</th><th>Cliente</th><th>M² Totales</th><th>Ingresos</th><th>Costos</th><th>Utilidad</th></tr></thead><tbody>'+
+        (lista.length===0 ? '<tr><td colspan="6" class="empty">Sin clientes</td></tr>' :
+        lista.map(function(c,i){
+          return '<tr><td><strong>'+(i+1)+'</strong></td><td><strong>'+esc(c.razon_social)+'</strong></td><td>'+fmtInt(c.mts2)+' m²</td><td style="color:var(--green);">$'+fmt(c.ingresos)+'</td><td style="color:var(--red);">$'+fmt(c.costos)+'</td><td style="font-weight:700;">$'+fmt(c.utilidad)+'</td></tr>';
+        }).join(''))+
+        '</tbody></table></div></div>';
+    }
+    var rankBodHtml = tablaRankCli('Ranking Clientes — Almacenes', 'warehouse', almPorMts2);
+    var rankCliHtml = tablaRankCli('Ranking Clientes — Predios', 'land', prdPorMts2);
 
     document.getElementById('mainArea').innerHTML=
       '<div class="page-header">'+
@@ -1154,6 +1159,23 @@ async function renderProyeccion(){
     var totUti=totIng-totCos;
     var promOcup=totalMts2>0?Math.round((proy.reduce(function(a,p){return a+p.mts2;},0)/12/totalMts2)*100):0;
 
+    // Cálculo por tipo de bodega
+    function metricasProyTipo(tipo){
+      var bods = bodegas.filter(function(b){return (b.tipo||'almacen')===tipo;});
+      var bodIds = {}; bods.forEach(function(b){bodIds[b.id]=true;});
+      var totMts2Tipo = bods.reduce(function(a,b){return a+parseFloat(b.mts2_totales||0);},0);
+      var sumMts2=0, sumIng=0, sumCos=0;
+      for(var mm=0;mm<12;mm++){
+        var vig = cb.filter(function(r){ return bodIds[r.bodega_id] && vigenteEnMes(r,mm); });
+        sumMts2 += vig.reduce(function(a,r){return a+parseFloat(r.mts2||0);},0);
+        sumIng += vig.reduce(function(a,r){return a+(parseFloat(r.mts2||0)*parseFloat(r.valor_m2||0));},0);
+        sumCos += vig.reduce(function(a,r){var b=bodMap[r.bodega_id];return a+(parseFloat(r.mts2||0)*(b?parseFloat(b.valor_m2_alquiler||0):0));},0);
+      }
+      return { ingresos:sumIng, costos:sumCos, utilidad:sumIng-sumCos, ocupPct: totMts2Tipo>0?Math.round((sumMts2/12/totMts2Tipo)*100):0 };
+    }
+    var mAlm = metricasProyTipo('almacen');
+    var mPrd = metricasProyTipo('predio');
+
     var html='<div class="page-header">'+
       '<div><div class="page-title">'+ico('trend','ico-lg')+' Proyección</div>'+
       '<div class="page-sub">Ocupación e ingresos proyectados por mes</div></div>'+
@@ -1163,11 +1185,26 @@ async function renderProyeccion(){
         '<div style="min-width:170px;"><label>Vista</label><select id="pVista" onchange="_proyChg()"><option value="consolidado"'+(vista==='consolidado'?' selected':'')+'>Consolidado</option><option value="bodega"'+(vista==='bodega'?' selected':'')+'>Por Bodega</option><option value="cliente"'+(vista==='cliente'?' selected':'')+'>Por Cliente</option></select></div>'+
         '<div style="min-width:220px;"><label>Escenario</label><select id="pEsc" onchange="_proyChg()"><option value="realista"'+(escn==='realista'?' selected':'')+'>Realista (respeta vencimientos)</option><option value="optimista"'+(escn==='optimista'?' selected':'')+'>Optimista (renovación asumida)</option></select></div>'+
       '</div></div></div>'+
+      // Secciones divididas por tipo
+      '<div class="section-divider">'+
+        '<div class="section-divider-title">'+ico('warehouse')+' Almacenes</div>'+
+        '<div class="section-divider-line"></div>'+
+      '</div>'+
       '<div class="kpi-grid">'+
-        '<div class="kpi green"><div class="kpi-head"><div class="kpi-icon">'+ico('cash')+'</div></div><div class="kpi-val">$'+fmt(totIng)+'</div><div class="kpi-lbl">Ingresos '+anio+'</div></div>'+
-        '<div class="kpi red"><div class="kpi-head"><div class="kpi-icon">'+ico('cash')+'</div></div><div class="kpi-val">$'+fmt(totCos)+'</div><div class="kpi-lbl">Costo '+anio+'</div></div>'+
-        '<div class="kpi yellow"><div class="kpi-head"><div class="kpi-icon">'+ico('trend')+'</div></div><div class="kpi-val">$'+fmt(totUti)+'</div><div class="kpi-lbl">Utilidad '+anio+'</div></div>'+
-        '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('ruler')+'</div></div><div class="kpi-val">'+promOcup+'%</div><div class="kpi-lbl">Ocupación promedio</div></div>'+
+        '<div class="kpi green"><div class="kpi-head"><div class="kpi-icon">'+ico('cash')+'</div></div><div class="kpi-val">$'+fmt(mAlm.ingresos)+'</div><div class="kpi-lbl">Ingresos '+anio+'</div></div>'+
+        '<div class="kpi red"><div class="kpi-head"><div class="kpi-icon">'+ico('cash')+'</div></div><div class="kpi-val">$'+fmt(mAlm.costos)+'</div><div class="kpi-lbl">Costo '+anio+'</div></div>'+
+        '<div class="kpi yellow"><div class="kpi-head"><div class="kpi-icon">'+ico('trend')+'</div></div><div class="kpi-val">$'+fmt(mAlm.utilidad)+'</div><div class="kpi-lbl">Utilidad '+anio+'</div></div>'+
+        '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('ruler')+'</div></div><div class="kpi-val">'+mAlm.ocupPct+'%</div><div class="kpi-lbl">Ocupación promedio</div></div>'+
+      '</div>'+
+      '<div class="section-divider">'+
+        '<div class="section-divider-title">'+ico('land')+' Predios</div>'+
+        '<div class="section-divider-line"></div>'+
+      '</div>'+
+      '<div class="kpi-grid">'+
+        '<div class="kpi green"><div class="kpi-head"><div class="kpi-icon">'+ico('cash')+'</div></div><div class="kpi-val">$'+fmt(mPrd.ingresos)+'</div><div class="kpi-lbl">Ingresos '+anio+'</div></div>'+
+        '<div class="kpi red"><div class="kpi-head"><div class="kpi-icon">'+ico('cash')+'</div></div><div class="kpi-val">$'+fmt(mPrd.costos)+'</div><div class="kpi-lbl">Costo '+anio+'</div></div>'+
+        '<div class="kpi yellow"><div class="kpi-head"><div class="kpi-icon">'+ico('trend')+'</div></div><div class="kpi-val">$'+fmt(mPrd.utilidad)+'</div><div class="kpi-lbl">Utilidad '+anio+'</div></div>'+
+        '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('ruler')+'</div></div><div class="kpi-val">'+mPrd.ocupPct+'%</div><div class="kpi-lbl">Ocupación promedio</div></div>'+
       '</div>';
     html+=_proyDosGraficos(cb,bodegas,contMap,anio,escn,meses,vigenteEnMes);
 
