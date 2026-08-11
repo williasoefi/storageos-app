@@ -732,8 +732,8 @@ async function renderContratos(){
       '</div>'+
       '<div class="card">'+
         '<div class="card-header"><h3>'+ico('contract')+' Listado de Contratos</h3><span class="count">'+contratos.length+' registros</span></div>'+
-        '<div class="table-wrap"><table><thead><tr><th>Código</th><th>Cliente</th><th>Bodegas</th><th>Total M²</th><th>Renta/mes</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Renov.</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>'+
-        (contratos.length===0?'<tr><td colspan="10" class="empty">Sin contratos</td></tr>':
+        '<div class="table-wrap"><table><thead><tr><th>Código</th><th>Cliente</th><th>Bodegas</th><th>Total M²</th><th>Renta/mes</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Renov.</th><th>PDF</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>'+
+        (contratos.length===0?'<tr><td colspan="11" class="empty">Sin contratos</td></tr>':
         contratos.map(function(c){
           var lin=bodPor[c.id]||[];
           var totM=lin.reduce(function(a,l){return a+parseFloat(l.mts2||0);},0);
@@ -758,6 +758,7 @@ async function renderContratos(){
             '<td>'+finT+'</td>'+
             '<td>'+estado+'</td>'+
             '<td>'+(c.renovado_de?'<span class="badge badge-steel" title="Renovación">↻ '+c.renovado_de+'</span>':'—')+'</td>'+
+            '<td>'+(c.pdf_url?'<a href="'+esc(c.pdf_url)+'" target="_blank" class="badge badge-green" style="text-decoration:none;">📄 Ver</a>':'—')+'</td>'+
             '<td><div class="actions">'+
               '<button class="btn-ghost btn-icon" onclick="modalContrato('+c.id+')" title="Editar">'+ico('edit','ico-sm')+'</button>'+
               '<button class="btn-steel btn-icon" onclick="modalContrato(0,'+c.id+')" title="Renovar" style="padding:5px 8px;">↻</button>'+
@@ -812,6 +813,17 @@ async function modalContrato(id, renovarDeId){
     '<div class="form-row"><div><label>Código *</label><input id="ctCod" value="'+esc(c.codigo)+'"/></div><div><label>Estado</label><select id="ctAct"><option value="true"'+(c.activo?' selected':'')+'>Activo</option><option value="false"'+(!c.activo?' selected':'')+'>Inactivo</option></select></div></div>'+
     '<div class="form-field"><label>Cliente *</label><select id="ctCli"><option value="">— Seleccionar —</option>'+optsC+'</select></div>'+
     '<div class="form-row"><div><label>Fecha Inicio</label><input id="ctIni" type="date" value="'+(c.fecha_inicio||'')+'"/></div><div><label>Fecha Fin</label><input id="ctFin" type="date" value="'+(c.fecha_fin||'')+'"/></div></div>'+
+    '<div class="form-field"><label>PDF del contrato firmado</label>'+
+      (c.pdf_url ? 
+        '<div style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg-elev);border-radius:8px;">'+
+          '<span style="flex:1;font-size:12px;">'+ico('contract','ico-sm')+' PDF cargado</span>'+
+          '<button type="button" class="btn-steel btn-icon" onclick="window.open(\''+esc(c.pdf_url)+'\',\'_blank\')">Ver</button>'+
+          '<button type="button" class="btn-danger btn-icon" onclick="_eliminarPDF('+(id||0)+')">Quitar</button>'+
+        '</div>' :
+        '<input type="file" id="ctPDF" accept="application/pdf" style="padding:6px 10px;"/>'+
+        '<div style="font-size:10px;color:var(--text3);margin-top:4px;">Máximo 10 MB · Solo PDF</div>'
+      )+
+    '</div>'+
     '<input type="hidden" id="ctRenovadoDe" value="'+(c.renovado_de||'')+'"/>'+
     '<div class="form-field"><label>Observaciones</label><textarea id="ctObs" rows="2">'+esc(c.observaciones||'')+'</textarea></div>'+
     '<div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;"><label style="margin:0;">Bodegas asignadas</label><button class="btn-steel btn-icon" onclick="_agregarLin()">+ Agregar bodega</button></div>'+
@@ -823,6 +835,28 @@ function _renderLin(){var el=document.getElementById('lineasBod');if(!el)return;
 function _updLin(el){var i=parseInt(el.getAttribute('data-i'));var f=el.getAttribute('data-f');var v=f==='bodega_id'?(parseInt(el.value)||null):(parseFloat(el.value)||0);if(window._modLin&&window._modLin[i])window._modLin[i][f]=v;}
 function _agregarLin(){if(!window._modLin)window._modLin=[];window._modLin.push({id:null,bodega_id:null,mts2:0,valor_m2:0});_renderLin();}
 function _delLin(i){if(window._modLin)window._modLin.splice(i,1);_renderLin();}
+async function _subirPDFContrato(contratoId, codigo){
+  var input = document.getElementById('ctPDF');
+  if(!input || !input.files || input.files.length===0) return null;
+  var file = input.files[0];
+  if(file.size > 10*1024*1024){ toast('PDF supera 10MB','error'); return null; }
+  if(file.type !== 'application/pdf'){ toast('Solo archivos PDF','error'); return null; }
+  var fileName = 'contrato_'+codigo.replace(/[^a-zA-Z0-9_-]/g,'_')+'_'+Date.now()+'.pdf';
+  var uploadUrl = SUPABASE_URL+'/storage/v1/object/contratos/'+fileName;
+  var res = await fetch(uploadUrl, {
+    method:'POST',
+    headers:{ 'apikey':SUPABASE_KEY, 'Authorization':'Bearer '+(_jwt||SUPABASE_KEY), 'Content-Type':'application/pdf' },
+    body: file
+  });
+  if(!res.ok){ var e=await res.json().catch(function(){return{};}); toast('Error subiendo PDF: '+(e.message||res.status),'error'); return null; }
+  return SUPABASE_URL+'/storage/v1/object/public/contratos/'+fileName;
+}
+async function _eliminarPDF(id){
+  if(!id){ document.getElementById('ctPDF').value=''; return; }
+  if(!confirm('¿Eliminar el PDF adjunto?'))return;
+  var res=await sbFetch('/rest/v1/contratos?id=eq.'+id, {method:'PATCH', body:JSON.stringify({pdf_url:null})});
+  if(res.ok){ toast('PDF eliminado'); modalContrato(id); }
+}
 async function guardarContrato(id){
   var renovadoDeVal=document.getElementById('ctRenovadoDe').value;
   var rec={codigo:document.getElementById('ctCod').value.trim(),cliente_id:parseInt(document.getElementById('ctCli').value)||null,fecha_inicio:document.getElementById('ctIni').value||null,fecha_fin:document.getElementById('ctFin').value||null,observaciones:document.getElementById('ctObs').value.trim()||null,activo:document.getElementById('ctAct').value==='true',renovado_de:renovadoDeVal?parseInt(renovadoDeVal):null};
@@ -837,6 +871,11 @@ async function guardarContrato(id){
   var inserts=lineas.map(function(l){return{contrato_id:contId,bodega_id:l.bodega_id,mts2:l.mts2,valor_m2:l.valor_m2};});
   var rIns=await sbFetch('/rest/v1/contrato_bodegas',{method:'POST',body:JSON.stringify(inserts)});
   if(!rIns.ok){var e2=await rIns.json();toast('Error bodegas: '+(e2.message||rIns.status),'error');return;}
+  // Subir PDF si hay archivo seleccionado
+  var pdfUrl = await _subirPDFContrato(contId, rec.codigo);
+  if(pdfUrl){
+    await sbFetch('/rest/v1/contratos?id=eq.'+contId, {method:'PATCH', body:JSON.stringify({pdf_url:pdfUrl})});
+  }
   // Si es renovación, marcar el original como inactivo
   if(!id && rec.renovado_de){
     await sbFetch('/rest/v1/contratos?id=eq.'+rec.renovado_de,{method:'PATCH',body:JSON.stringify({activo:false})});
@@ -855,25 +894,102 @@ async function eliminarContrato(id){
 async function renderOcupaciones(){
   document.getElementById('mainArea').innerHTML='<div class="loading">Cargando...</div>';
   try{
-    var res=await sbFetch('/rest/v1/ocupaciones?select=*,contratos(codigo,clientes_almacen(razon_social))&order=semana.desc&limit=200');
-    var ocs=await res.json();if(!Array.isArray(ocs))ocs=[];
+    var [rOc, rB, rCB, rC, rCli] = await Promise.all([
+      sbFetch('/rest/v1/ocupaciones?select=*,contratos(codigo,clientes_almacen(razon_social)),bodegas(nombre)&order=semana.desc&limit=500'),
+      sbFetch('/rest/v1/bodegas?select=*&limit=10000'),
+      sbFetch('/rest/v1/contrato_bodegas?select=*&limit=10000'),
+      sbFetch('/rest/v1/contratos?select=*&limit=10000'),
+      sbFetch('/rest/v1/clientes_almacen?select=*&limit=10000')
+    ]);
+    var ocs=await rOc.json();if(!Array.isArray(ocs))ocs=[];
+    var bodegas=await rB.json();if(!Array.isArray(bodegas))bodegas=[];
+    var cb=await rCB.json();if(!Array.isArray(cb))cb=[];
+    var contratos=await rC.json();if(!Array.isArray(contratos))contratos=[];
+    var clientes=await rCli.json();if(!Array.isArray(clientes))clientes=[];
+    var bodMap={};bodegas.forEach(function(b){bodMap[b.id]=b;});
+    var contMap={};contratos.forEach(function(c){contMap[c.id]=c;});
+    var cliMap={};clientes.forEach(function(c){cliMap[c.id]=c;});
+    var activosCB=cb.filter(function(r){var c=contMap[r.contrato_id];return c&&c.activo!==false;});
+
+    // ══ Cálculo KPI 1: Ocupación por bodega ══
+    var ocupBod = bodegas.map(function(b){
+      var util = activosCB.filter(function(r){return r.bodega_id===b.id;}).reduce(function(a,r){return a+parseFloat(r.mts2||0);},0);
+      var tot = parseFloat(b.mts2_totales||0);
+      var pct = tot>0 ? (util/tot)*100 : 0;
+      return { id:b.id, nombre:b.nombre, tipo:b.tipo||'almacen', util:util, tot:tot, pct:pct };
+    }).sort(function(a,b){return b.pct-a.pct;});
+
+    // ══ Cálculo KPI 2: Ocupación por cliente (m² totales) ══
+    var ocupCliMap = {};
+    activosCB.forEach(function(r){
+      var c = contMap[r.contrato_id];
+      if(!c || !c.cliente_id) return;
+      if(!ocupCliMap[c.cliente_id]) ocupCliMap[c.cliente_id] = { mts2:0, ingresos:0, costos:0 };
+      var mts2 = parseFloat(r.mts2||0);
+      var b = bodMap[r.bodega_id];
+      ocupCliMap[c.cliente_id].mts2 += mts2;
+      ocupCliMap[c.cliente_id].ingresos += mts2 * parseFloat(r.valor_m2||0);
+      ocupCliMap[c.cliente_id].costos += mts2 * (b?parseFloat(b.valor_m2_alquiler||0):0);
+    });
+    var ocupCli = Object.keys(ocupCliMap).map(function(cid){
+      var c = cliMap[cid] || {};
+      var m = ocupCliMap[cid];
+      return { id:cid, razon_social:c.razon_social||'—', mts2:m.mts2, ingresos:m.ingresos, costos:m.costos, utilidad:m.ingresos-m.costos };
+    });
+    var ocupCliPorMts2 = ocupCli.slice().sort(function(a,b){return b.mts2-a.mts2;});
+    var ocupCliPorUtil = ocupCli.slice().sort(function(a,b){return b.utilidad-a.utilidad;});
+
+    // ══ KPI 3 y 4 ══
+    var cliMayorOcup = ocupCliPorMts2[0] || {razon_social:'—', mts2:0};
+    var cliMasRent = ocupCliPorUtil[0] || {razon_social:'—', utilidad:0};
+
+    var kpisHtml = '<div class="kpi-grid">'+
+      '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('warehouse')+'</div></div><div class="kpi-val" style="font-size:16px;">'+esc((ocupBod[0]||{}).nombre||'—')+'</div><div class="kpi-lbl">Bodega más ocupada · '+Math.round((ocupBod[0]||{}).pct||0)+'%</div></div>'+
+      '<div class="kpi purple"><div class="kpi-head"><div class="kpi-icon">'+ico('package')+'</div></div><div class="kpi-val">'+fmtInt(ocupCli.reduce(function(a,c){return a+c.mts2;},0))+'</div><div class="kpi-lbl">M² totales por clientes</div></div>'+
+      '<div class="kpi"><div class="kpi-head"><div class="kpi-icon">'+ico('users')+'</div></div><div class="kpi-val" style="font-size:15px;">'+esc(cliMayorOcup.razon_social)+'</div><div class="kpi-lbl">Mayor ocupación · '+fmtInt(cliMayorOcup.mts2)+' m²</div></div>'+
+      '<div class="kpi yellow"><div class="kpi-head"><div class="kpi-icon">'+ico('trend')+'</div></div><div class="kpi-val" style="font-size:15px;">'+esc(cliMasRent.razon_social)+'</div><div class="kpi-lbl">Más rentable · $'+fmt(cliMasRent.utilidad||0)+'</div></div>'+
+    '</div>';
+
+    // Tabla ranking bodegas
+    var rankBodHtml = '<div class="card"><div class="card-header"><h3>'+ico('warehouse')+' Ranking Ocupación por Bodega</h3><span class="count">'+bodegas.length+' bodegas</span></div>'+
+      '<div class="table-wrap"><table><thead><tr><th>#</th><th>Bodega</th><th>Tipo</th><th>Utilizados</th><th>Capacidad</th><th>% Ocupación</th></tr></thead><tbody>'+
+      ocupBod.map(function(b,i){
+        var badge=b.pct>=90?'red':b.pct>=60?'yellow':'green';
+        var tipoLbl = b.tipo==='predio'?'<span class="badge" style="background:rgba(168,85,247,.15);color:var(--purple);">Predio</span>':'<span class="badge badge-steel">Almacén</span>';
+        return '<tr><td><strong>'+(i+1)+'</strong></td><td><strong>'+esc(b.nombre)+'</strong></td><td>'+tipoLbl+'</td><td>'+fmtInt(b.util)+' m²</td><td>'+fmtInt(b.tot)+' m²</td><td><span class="badge badge-'+badge+'">'+Math.round(b.pct)+'%</span></td></tr>';
+      }).join('')+
+      '</tbody></table></div></div>';
+
+    // Tabla ranking clientes
+    var rankCliHtml = '<div class="card"><div class="card-header"><h3>'+ico('users')+' Ranking Clientes por Ocupación</h3><span class="count">'+ocupCli.length+' clientes</span></div>'+
+      '<div class="table-wrap"><table><thead><tr><th>#</th><th>Cliente</th><th>M² Totales</th><th>Ingresos</th><th>Costos</th><th>Utilidad</th></tr></thead><tbody>'+
+      ocupCliPorMts2.map(function(c,i){
+        return '<tr><td><strong>'+(i+1)+'</strong></td><td><strong>'+esc(c.razon_social)+'</strong></td><td>'+fmtInt(c.mts2)+' m²</td><td style="color:var(--green);">$'+fmt(c.ingresos)+'</td><td style="color:var(--red);">$'+fmt(c.costos)+'</td><td style="font-weight:700;">$'+fmt(c.utilidad)+'</td></tr>';
+      }).join('')+
+      '</tbody></table></div></div>';
+
     document.getElementById('mainArea').innerHTML=
       '<div class="page-header">'+
         '<div><div class="page-title">'+ico('package','ico-lg')+' Ocupaciones</div>'+
-        '<div class="page-sub">Registro semanal de m² ocupados</div></div>'+
+        '<div class="page-sub">Registro semanal e indicadores de ocupación</div></div>'+
         '<button class="btn-primary" onclick="modalOcupacion()">'+ico('plus','ico-sm')+' Registrar ocupación</button>'+
       '</div>'+
+      kpisHtml +
+      rankBodHtml +
+      rankCliHtml +
       '<div class="card">'+
         '<div class="card-header"><h3>'+ico('package')+' Últimos Registros</h3><span class="count">'+ocs.length+' registros</span></div>'+
-        '<div class="table-wrap"><table><thead><tr><th>Semana</th><th>Contrato</th><th>Cliente</th><th>M² Ocupados</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>'+
-        (ocs.length===0?'<tr><td colspan="5" class="empty">Sin registros</td></tr>':
+        '<div class="table-wrap"><table><thead><tr><th>Semana</th><th>Contrato</th><th>Cliente</th><th>Bodega</th><th>M² Ocupados</th><th style="text-align:right;">Acciones</th></tr></thead><tbody>'+
+        (ocs.length===0?'<tr><td colspan="6" class="empty">Sin registros</td></tr>':
         ocs.map(function(o){
           var ct=o.contratos||{};
           var cli=ct.clientes_almacen?ct.clientes_almacen.razon_social:'—';
+          var bod=o.bodegas?o.bodegas.nombre:'—';
           var sem=o.semana?new Date(o.semana).toLocaleDateString('en-US'):'—';
           return '<tr><td>'+sem+'</td>'+
             '<td><strong>'+esc(ct.codigo||'—')+'</strong></td>'+
             '<td>'+esc(cli)+'</td>'+
+            '<td>'+esc(bod)+'</td>'+
             '<td>'+fmtInt(o.mts2_ocupados||0)+' m²</td>'+
             '<td><div class="actions">'+
               '<button class="btn-ghost btn-icon" onclick="modalOcupacion('+o.id+')" title="Editar">'+ico('edit','ico-sm')+'</button>'+
@@ -884,22 +1000,114 @@ async function renderOcupaciones(){
   }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error</div>';}
 }
 async function modalOcupacion(id){
-  var o={contrato_id:null,semana:new Date().toISOString().split('T')[0],mts2_ocupados:0};
+  var o={contrato_id:null,bodega_id:null,semana:new Date().toISOString().split('T')[0],mts2_ocupados:0};
   if(id){var res=await sbFetch('/rest/v1/ocupaciones?id=eq.'+id);var d=await res.json();if(d&&d[0])o=d[0];}
   var rC=await sbFetch('/rest/v1/contratos?select=id,codigo,clientes_almacen(razon_social)&activo=eq.true&order=codigo.asc');
   var conts=await rC.json();if(!Array.isArray(conts))conts=[];
   var opts=conts.map(function(c){var cli=c.clientes_almacen?' — '+c.clientes_almacen.razon_social:'';return '<option value="'+c.id+'"'+(o.contrato_id===c.id?' selected':'')+'>'+esc(c.codigo+cli)+'</option>';}).join('');
+  window._ocLineas = id ? [{bodega_id:o.bodega_id,mts2:o.mts2_ocupados}] : [];
   openModal(id?'Editar Ocupación':'Registrar Ocupación',
-    '<div class="form-field"><label>Contrato *</label><select id="oCont"><option value="">— Seleccionar —</option>'+opts+'</select></div>'+
-    '<div class="form-row"><div><label>Semana (fecha lunes) *</label><input id="oSem" type="date" value="'+(o.semana||'')+'"/></div><div><label>M² Ocupados *</label><input id="oMts" type="number" step="0.01" value="'+(o.mts2_ocupados||0)+'"/></div></div>',
+    '<div class="form-field"><label>Contrato *</label><select id="oCont" onchange="_ocCargarBodegas()"><option value="">— Seleccionar —</option>'+opts+'</select></div>'+
+    '<div class="form-field"><label>Semana (fecha lunes) *</label><input id="oSem" type="date" value="'+(o.semana||'')+'"/></div>'+
+    (id?
+      '<div class="form-row"><div><label>Bodega</label><select id="oBod"><option value="">— Seleccionar —</option></select></div><div><label>M² Ocupados</label><input id="oMts" type="number" step="0.01" value="'+(o.mts2_ocupados||0)+'"/></div></div>'
+      :
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;"><label style="margin:0;">Ocupación por bodega del contrato</label><button class="btn-steel btn-icon" onclick="_ocAgregarLinea()">+ Agregar bodega</button></div>'+
+      '<div id="ocLineasWrap" style="min-height:40px;"><div style="padding:14px;color:var(--text3);font-size:11px;text-align:center;background:var(--bg-elev);border-radius:8px;">Seleccioná primero el contrato</div></div>'
+    ),
     '<button class="btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn-primary" onclick="guardarOcupacion('+(id||0)+')">Guardar</button>');
+  if(id){ _ocCargarBodegas(o.bodega_id); }
+}
+async function _ocCargarBodegas(preSel){
+  var contId = parseInt(document.getElementById('oCont').value);
+  if(!contId){
+    var wrap=document.getElementById('ocLineasWrap');
+    if(wrap)wrap.innerHTML='<div style="padding:14px;color:var(--text3);font-size:11px;text-align:center;background:var(--bg-elev);border-radius:8px;">Seleccioná primero el contrato</div>';
+    return;
+  }
+  var res = await sbFetch('/rest/v1/contrato_bodegas?contrato_id=eq.'+contId+'&select=bodega_id,mts2,bodegas(nombre)');
+  var cbs = await res.json();
+  if(!Array.isArray(cbs)) cbs=[];
+  window._ocBodegasContrato = cbs;
+  // Modo edición (id): llenar select
+  var selBod = document.getElementById('oBod');
+  if(selBod){
+    selBod.innerHTML = '<option value="">— Seleccionar —</option>' + cbs.map(function(cb){
+      var nm = cb.bodegas ? cb.bodegas.nombre : ('ID '+cb.bodega_id);
+      return '<option value="'+cb.bodega_id+'"'+(preSel===cb.bodega_id?' selected':'')+'>'+esc(nm)+' ('+fmtInt(cb.mts2||0)+' m² contratados)</option>';
+    }).join('');
+    return;
+  }
+  // Modo nuevo: precargar todas las bodegas del contrato como líneas
+  window._ocLineas = cbs.map(function(cb){
+    return { bodega_id: cb.bodega_id, mts2: cb.mts2||0, nombre: cb.bodegas ? cb.bodegas.nombre : ('ID '+cb.bodega_id), max: cb.mts2||0 };
+  });
+  _ocRenderLineas();
+}
+function _ocRenderLineas(){
+  var wrap = document.getElementById('ocLineasWrap');
+  if(!wrap) return;
+  var lin = window._ocLineas || [];
+  if(lin.length===0){
+    wrap.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:11px;text-align:center;background:var(--bg-elev);border-radius:8px;">Este contrato no tiene bodegas asignadas</div>';
+    return;
+  }
+  wrap.innerHTML = lin.map(function(l, i){
+    return '<div class="linea-bod" style="grid-template-columns:2fr 1fr auto;">'+
+      '<div><label>Bodega</label><div style="padding:8px 11px;background:var(--bg-body);border-radius:6px;font-size:12px;">'+esc(l.nombre)+'</div></div>'+
+      '<div><label>M² Ocupados (max '+fmtInt(l.max)+')</label><input type="number" step="0.01" value="'+(l.mts2||0)+'" data-i="'+i+'" onchange="_ocUpd(this)"/></div>'+
+      '<div><button class="btn-danger btn-icon" onclick="_ocDelLinea('+i+')">✕</button></div>'+
+    '</div>';
+  }).join('');
+}
+function _ocUpd(el){
+  var i = parseInt(el.getAttribute('data-i'));
+  if(window._ocLineas && window._ocLineas[i]){
+    window._ocLineas[i].mts2 = parseFloat(el.value)||0;
+  }
+}
+function _ocDelLinea(i){
+  if(window._ocLineas) window._ocLineas.splice(i,1);
+  _ocRenderLineas();
+}
+function _ocAgregarLinea(){
+  var cbs = window._ocBodegasContrato || [];
+  if(cbs.length===0){ toast('Este contrato no tiene bodegas','error'); return; }
+  // Buscar una bodega que no esté en las líneas
+  var usados = {};
+  (window._ocLineas||[]).forEach(function(l){ usados[l.bodega_id]=true; });
+  var disponible = cbs.find(function(cb){ return !usados[cb.bodega_id]; });
+  if(!disponible){ toast('Todas las bodegas del contrato ya están agregadas','error'); return; }
+  window._ocLineas.push({
+    bodega_id: disponible.bodega_id,
+    mts2: disponible.mts2||0,
+    nombre: disponible.bodegas ? disponible.bodegas.nombre : ('ID '+disponible.bodega_id),
+    max: disponible.mts2||0
+  });
+  _ocRenderLineas();
 }
 async function guardarOcupacion(id){
-  var rec={contrato_id:parseInt(document.getElementById('oCont').value)||null,semana:document.getElementById('oSem').value||null,mts2_ocupados:parseFloat(document.getElementById('oMts').value)||0};
-  if(!rec.contrato_id||!rec.semana||!rec.mts2_ocupados){toast('Todos los campos requeridos','error');return;}
-  var res=await sbFetch('/rest/v1/ocupaciones'+(id?'?id=eq.'+id:''),{method:id?'PATCH':'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(rec)});
-  if(!res.ok){var e=await res.json();toast('Error: '+(e.message||res.status),'error');return;}
-  toast(id?'Ocupación actualizada':'Ocupación registrada');closeModal();renderOcupaciones();
+  var contId = parseInt(document.getElementById('oCont').value)||null;
+  var semana = document.getElementById('oSem').value||null;
+  if(!contId||!semana){ toast('Contrato y semana requeridos','error'); return; }
+  if(id){
+    // Modo edición: 1 solo registro
+    var bodId = parseInt(document.getElementById('oBod').value)||null;
+    var mts = parseFloat(document.getElementById('oMts').value)||0;
+    if(!bodId||!mts){ toast('Bodega y m² requeridos','error'); return; }
+    var rec = { contrato_id:contId, bodega_id:bodId, semana:semana, mts2_ocupados:mts };
+    var res = await sbFetch('/rest/v1/ocupaciones?id=eq.'+id, {method:'PATCH', headers:{'Prefer':'return=representation'}, body:JSON.stringify(rec)});
+    if(!res.ok){ var e=await res.json(); toast('Error: '+(e.message||res.status),'error'); return; }
+    toast('Ocupación actualizada');
+  } else {
+    var lineas = (window._ocLineas||[]).filter(function(l){ return l.bodega_id && l.mts2 > 0; });
+    if(lineas.length===0){ toast('Agregá al menos una bodega con m²','error'); return; }
+    var inserts = lineas.map(function(l){ return { contrato_id:contId, bodega_id:l.bodega_id, semana:semana, mts2_ocupados:l.mts2 }; });
+    var res = await sbFetch('/rest/v1/ocupaciones', {method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(inserts)});
+    if(!res.ok){ var e=await res.json(); toast('Error: '+(e.message||res.status),'error'); return; }
+    toast(inserts.length+' registro(s) de ocupación guardados');
+  }
+  closeModal(); renderOcupaciones();
 }
 async function eliminarOcupacion(id){
   if(!(await confirmar('¿Eliminar este registro?')))return;
@@ -961,7 +1169,7 @@ async function renderProyeccion(){
         '<div class="kpi yellow"><div class="kpi-head"><div class="kpi-icon">'+ico('trend')+'</div></div><div class="kpi-val">$'+fmt(totUti)+'</div><div class="kpi-lbl">Utilidad '+anio+'</div></div>'+
         '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('ruler')+'</div></div><div class="kpi-val">'+promOcup+'%</div><div class="kpi-lbl">Ocupación promedio</div></div>'+
       '</div>';
-    html+=_proyGrafico(proy,meses);
+    html+=_proyDosGraficos(cb,bodegas,contMap,anio,escn,meses,vigenteEnMes);
 
     if(vista==='consolidado'){
       html+='<div class="card">'+
@@ -1007,16 +1215,38 @@ async function renderProyeccion(){
   }catch(e){toast('Error: '+e.message,'error');document.getElementById('mainArea').innerHTML='<div class="empty">Error</div>';}
 }
 function _proyChg(){window._proy.anio=parseInt(document.getElementById('pAnio').value);window._proy.vista=document.getElementById('pVista').value;window._proy.escenario=document.getElementById('pEsc').value;renderProyeccion();}
-function _proyGrafico(proy,meses){
-  var maxV=Math.max.apply(null,proy.map(function(p){return Math.max(p.ingresos,p.costos);}));
+function _proyGraficoSVG(datos,meses){
+  var maxV=Math.max.apply(null,datos.map(function(p){return Math.max(p.ingresos,p.costos);}));
   if(maxV===0)maxV=1;
-  var w=900,h=280,pad=50;
+  var w=900,h=260,pad=50;
   var slot=(w-pad*2)/12;var bw=slot/2-4;
-  var svg='<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:280px;">';
+  var svg='<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:260px;">';
   for(var g=0;g<=4;g++){var y=pad+((h-pad*2)*g/4);var val=maxV*(1-g/4);svg+='<line x1="'+pad+'" y1="'+y+'" x2="'+(w-pad)+'" y2="'+y+'" stroke="rgba(148,163,184,.08)"/>';svg+='<text x="'+(pad-6)+'" y="'+(y+3)+'" text-anchor="end" fill="#94a3b8" font-size="9">$'+fmtInt(val)+'</text>';}
-  for(var i=0;i<12;i++){var xBase=pad+i*slot+4;var hIng=maxV>0?((h-pad*2)*proy[i].ingresos)/maxV:0;var hCos=maxV>0?((h-pad*2)*proy[i].costos)/maxV:0;svg+='<rect x="'+xBase+'" y="'+(h-pad-hIng)+'" width="'+bw+'" height="'+hIng+'" fill="#10b981" rx="2"><title>Ing '+meses[i]+': $'+fmt(proy[i].ingresos)+'</title></rect>';svg+='<rect x="'+(xBase+bw+2)+'" y="'+(h-pad-hCos)+'" width="'+bw+'" height="'+hCos+'" fill="#ef4444" rx="2"><title>Cos '+meses[i]+': $'+fmt(proy[i].costos)+'</title></rect>';svg+='<text x="'+(xBase+bw)+'" y="'+(h-pad+16)+'" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">'+meses[i]+'</text>';}
+  for(var i=0;i<12;i++){var xBase=pad+i*slot+4;var hIng=maxV>0?((h-pad*2)*datos[i].ingresos)/maxV:0;var hCos=maxV>0?((h-pad*2)*datos[i].costos)/maxV:0;svg+='<rect x="'+xBase+'" y="'+(h-pad-hIng)+'" width="'+bw+'" height="'+hIng+'" fill="#10b981" rx="2"><title>Ing '+meses[i]+': $'+fmt(datos[i].ingresos)+'</title></rect>';svg+='<rect x="'+(xBase+bw+2)+'" y="'+(h-pad-hCos)+'" width="'+bw+'" height="'+hCos+'" fill="#ef4444" rx="2"><title>Cos '+meses[i]+': $'+fmt(datos[i].costos)+'</title></rect>';svg+='<text x="'+(xBase+bw)+'" y="'+(h-pad+16)+'" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">'+meses[i]+'</text>';}
   svg+='</svg>';
-  return '<div class="card"><div class="card-header"><h3>'+ico('chart')+' Ingresos vs Costos por Mes</h3><span class="count"><span style="color:#10b981;font-weight:700;">■</span> Ingresos &nbsp; <span style="color:#ef4444;font-weight:700;">■</span> Costo</span></div><div style="padding:16px;overflow-x:auto;">'+svg+'</div></div>';
+  return svg;
+}
+function _proyDosGraficos(cb,bodegas,contMap,anio,escn,meses,vigenteEnMes){
+  var bodMap={};bodegas.forEach(function(b){bodMap[b.id]=b;});
+  function calcTipo(tipo){
+    var arr=[];
+    for(var m=0;m<12;m++){
+      var vig=cb.filter(function(r){
+        if(!vigenteEnMes(r,m))return false;
+        var b=bodMap[r.bodega_id];
+        return b && (b.tipo||'almacen')===tipo;
+      });
+      var ing=vig.reduce(function(a,r){return a+(parseFloat(r.mts2||0)*parseFloat(r.valor_m2||0));},0);
+      var cos=vig.reduce(function(a,r){var b=bodMap[r.bodega_id];return a+(parseFloat(r.mts2||0)*(b?parseFloat(b.valor_m2_alquiler||0):0));},0);
+      arr.push({ingresos:ing,costos:cos});
+    }
+    return arr;
+  }
+  var alm=calcTipo('almacen');
+  var prd=calcTipo('predio');
+  var legend='<span class="count"><span style="color:#10b981;font-weight:700;">■</span> Ingresos &nbsp; <span style="color:#ef4444;font-weight:700;">■</span> Costo</span>';
+  return '<div class="card"><div class="card-header"><h3>'+ico('warehouse')+' Almacenes — Ingresos vs Costos '+anio+'</h3>'+legend+'</div><div style="padding:14px;overflow-x:auto;">'+_proyGraficoSVG(alm,meses)+'</div></div>'+
+    '<div class="card"><div class="card-header"><h3>'+ico('land')+' Predios — Ingresos vs Costos '+anio+'</h3>'+legend+'</div><div style="padding:14px;overflow-x:auto;">'+_proyGraficoSVG(prd,meses)+'</div></div>';
 }
 
 
