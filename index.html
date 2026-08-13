@@ -264,6 +264,10 @@ tr:hover td{background:rgba(30,49,96,.35);}
       <svg class="ico" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
       Proyección
     </div>
+    <div class="sb-item" data-page="reportes" onclick="navTo('reportes')">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+      Reportes
+    </div>
 
     <div class="sb-footer">
       <div class="sb-user" onclick="logout()">
@@ -366,11 +370,11 @@ function showApp(){
   if(_user&&_user.email){var name=_user.email.split('@')[0];document.getElementById('uName').textContent=name;document.getElementById('uAvatar').textContent=name[0].toUpperCase();}
 }
 
-var CRUMBS={dashboard:'Dashboard',bodegas:'Bodegas',clientes:'Clientes',contratos:'Contratos',ocupaciones:'Ocupaciones',proyeccion:'Proyección'};
+var CRUMBS={dashboard:'Dashboard',bodegas:'Bodegas',clientes:'Clientes',contratos:'Contratos',ocupaciones:'Ocupaciones',proyeccion:'Proyección',reportes:'Reportes'};
 function navTo(page){
   document.querySelectorAll('.sb-item').forEach(function(t){t.classList.toggle('active',t.getAttribute('data-page')===page);});
   document.getElementById('crumb').textContent=CRUMBS[page]||page;
-  var pages={dashboard:renderDashboard,bodegas:renderBodegas,clientes:renderClientes,contratos:renderContratos,ocupaciones:renderOcupaciones,proyeccion:renderProyeccion};
+  var pages={dashboard:renderDashboard,bodegas:renderBodegas,clientes:renderClientes,contratos:renderContratos,ocupaciones:renderOcupaciones,proyeccion:renderProyeccion,reportes:renderReportes};
   if(pages[page])pages[page]();
 }
 function toast(msg,type){var el=document.getElementById('toast');el.textContent=msg;el.className='toast show '+(type||'success');setTimeout(function(){el.className='toast';},3000);}
@@ -1034,7 +1038,6 @@ async function _ocCargarBodegas(preSel){
   var cbs = await res.json();
   if(!Array.isArray(cbs)) cbs=[];
   window._ocBodegasContrato = cbs;
-  // Modo edición (id): llenar select
   var selBod = document.getElementById('oBod');
   if(selBod){
     selBod.innerHTML = '<option value="">— Seleccionar —</option>' + cbs.map(function(cb){
@@ -1043,27 +1046,52 @@ async function _ocCargarBodegas(preSel){
     }).join('');
     return;
   }
-  // Modo nuevo: precargar todas las bodegas del contrato como líneas
-  window._ocLineas = cbs.map(function(cb){
-    return { bodega_id: cb.bodega_id, mts2: cb.mts2||0, nombre: cb.bodegas ? cb.bodegas.nombre : ('ID '+cb.bodega_id), max: cb.mts2||0 };
-  });
+  // Modo nuevo: NO precargar. Usuario agrega manualmente con "+ Agregar bodega"
+  window._ocLineas = [];
   _ocRenderLineas();
 }
 function _ocRenderLineas(){
   var wrap = document.getElementById('ocLineasWrap');
   if(!wrap) return;
   var lin = window._ocLineas || [];
+  var cbs = window._ocBodegasContrato || [];
+  if(cbs.length===0){
+    wrap.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:11px;text-align:center;background:var(--bg-elev);border-radius:8px;">Seleccioná primero el contrato</div>';
+    return;
+  }
   if(lin.length===0){
-    wrap.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:11px;text-align:center;background:var(--bg-elev);border-radius:8px;">Este contrato no tiene bodegas asignadas</div>';
+    wrap.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:11px;text-align:center;background:var(--bg-elev);border-radius:8px;">Sin bodegas registradas. Clic en "+ Agregar bodega" para registrar la ocupación semanal.</div>';
     return;
   }
   wrap.innerHTML = lin.map(function(l, i){
+    var usadosOtros = {};
+    lin.forEach(function(lo, io){ if(io!==i && lo.bodega_id) usadosOtros[lo.bodega_id]=true; });
+    var opts = cbs.map(function(cb){
+      if(usadosOtros[cb.bodega_id]) return '';
+      var nm = cb.bodegas ? cb.bodegas.nombre : ('ID '+cb.bodega_id);
+      return '<option value="'+cb.bodega_id+'"'+(l.bodega_id===cb.bodega_id?' selected':'')+'>'+esc(nm)+' (max '+fmtInt(cb.mts2||0)+' m²)</option>';
+    }).join('');
+    var maxLbl = l.max>0 ? ' (max '+fmtInt(l.max)+')' : '';
     return '<div class="linea-bod" style="grid-template-columns:2fr 1fr auto;">'+
-      '<div><label>Bodega</label><div style="padding:8px 11px;background:var(--bg-body);border-radius:6px;font-size:12px;">'+esc(l.nombre)+'</div></div>'+
-      '<div><label>M² Ocupados (max '+fmtInt(l.max)+')</label><input type="number" step="0.01" value="'+(l.mts2||0)+'" data-i="'+i+'" onchange="_ocUpd(this)"/></div>'+
+      '<div><label>Bodega</label><select data-i="'+i+'" onchange="_ocUpdSel(this)"><option value="">— Seleccionar —</option>'+opts+'</select></div>'+
+      '<div><label>M² Ocupados'+maxLbl+'</label><input type="number" step="0.01" value="'+(l.mts2||0)+'" data-i="'+i+'" onchange="_ocUpd(this)"/></div>'+
       '<div><button class="btn-danger btn-icon" onclick="_ocDelLinea('+i+')">✕</button></div>'+
     '</div>';
   }).join('');
+}
+function _ocUpdSel(el){
+  var i = parseInt(el.getAttribute('data-i'));
+  var val = parseInt(el.value)||null;
+  if(window._ocLineas && window._ocLineas[i]){
+    window._ocLineas[i].bodega_id = val;
+    var cbs = window._ocBodegasContrato || [];
+    var cb = cbs.find(function(x){return x.bodega_id===val;});
+    if(cb){
+      window._ocLineas[i].nombre = cb.bodegas ? cb.bodegas.nombre : ('ID '+cb.bodega_id);
+      window._ocLineas[i].max = cb.mts2||0;
+    }
+    _ocRenderLineas();
+  }
 }
 function _ocUpd(el){
   var i = parseInt(el.getAttribute('data-i'));
@@ -1077,18 +1105,12 @@ function _ocDelLinea(i){
 }
 function _ocAgregarLinea(){
   var cbs = window._ocBodegasContrato || [];
-  if(cbs.length===0){ toast('Este contrato no tiene bodegas','error'); return; }
-  // Buscar una bodega que no esté en las líneas
+  if(cbs.length===0){ toast('Seleccioná primero el contrato','error'); return; }
   var usados = {};
-  (window._ocLineas||[]).forEach(function(l){ usados[l.bodega_id]=true; });
-  var disponible = cbs.find(function(cb){ return !usados[cb.bodega_id]; });
-  if(!disponible){ toast('Todas las bodegas del contrato ya están agregadas','error'); return; }
-  window._ocLineas.push({
-    bodega_id: disponible.bodega_id,
-    mts2: disponible.mts2||0,
-    nombre: disponible.bodegas ? disponible.bodegas.nombre : ('ID '+disponible.bodega_id),
-    max: disponible.mts2||0
-  });
+  (window._ocLineas||[]).forEach(function(l){ if(l.bodega_id) usados[l.bodega_id]=true; });
+  var disponibles = cbs.filter(function(cb){ return !usados[cb.bodega_id]; });
+  if(disponibles.length===0){ toast('Todas las bodegas del contrato ya están agregadas','error'); return; }
+  window._ocLineas.push({ bodega_id:null, mts2:0, nombre:'', max:0 });
   _ocRenderLineas();
 }
 async function guardarOcupacion(id){
@@ -1286,6 +1308,195 @@ function _proyDosGraficos(cb,bodegas,contMap,anio,escn,meses,vigenteEnMes){
     '<div class="card"><div class="card-header"><h3>'+ico('land')+' Predios — Ingresos vs Costos '+anio+'</h3>'+legend+'</div><div style="padding:14px;overflow-x:auto;">'+_proyGraficoSVG(prd,meses)+'</div></div>';
 }
 
+
+
+// ═══════════════════════════════════════════════════════════════
+// REPORTES — Evolución de ocupación por cliente
+// ═══════════════════════════════════════════════════════════════
+async function renderReportes(){
+  if(!window._rep) window._rep = { anio: new Date().getFullYear(), clienteFiltro: null };
+  document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando reportes...</div>';
+  try {
+    var [rOc, rC, rCli] = await Promise.all([
+      sbFetch('/rest/v1/ocupaciones?select=*&limit=100000'),
+      sbFetch('/rest/v1/contratos?select=id,cliente_id&limit=10000'),
+      sbFetch('/rest/v1/clientes_almacen?select=id,razon_social&limit=10000')
+    ]);
+    var ocs = await rOc.json(); if(!Array.isArray(ocs)) ocs=[];
+    var contratos = await rC.json(); if(!Array.isArray(contratos)) contratos=[];
+    var clientes = await rCli.json(); if(!Array.isArray(clientes)) clientes=[];
+    var contMap = {}; contratos.forEach(function(c){ contMap[c.id]=c; });
+    var cliMap = {}; clientes.forEach(function(c){ cliMap[c.id]=c; });
+
+    var anio = window._rep.anio;
+    var anioActual = new Date().getFullYear();
+
+    // ISO week number
+    function getWeekNum(dateStr){
+      var d = new Date(dateStr+'T00:00:00');
+      d.setHours(0,0,0,0);
+      d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+      var week1 = new Date(d.getFullYear(),0,4);
+      return 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+    }
+
+    // Filtrar ocupaciones del año seleccionado
+    var ocsAnio = ocs.filter(function(o){
+      if(!o.semana) return false;
+      return new Date(o.semana+'T00:00:00').getFullYear() === anio;
+    });
+
+    // datos[cliente_id][num_semana] = suma m²
+    var datos = {};
+    ocsAnio.forEach(function(o){
+      var c = contMap[o.contrato_id];
+      if(!c || !c.cliente_id) return;
+      var cid = c.cliente_id;
+      var wn = getWeekNum(o.semana);
+      if(!datos[cid]) datos[cid] = {};
+      if(!datos[cid][wn]) datos[cid][wn] = 0;
+      datos[cid][wn] += parseFloat(o.mts2_ocupados||0);
+    });
+
+    var cliArr = Object.keys(datos).map(function(cid){
+      var totalCli = 0;
+      Object.keys(datos[cid]).forEach(function(w){ totalCli += datos[cid][w]; });
+      return { id:cid, razon_social:(cliMap[cid]||{}).razon_social||'—', datos:datos[cid], total:totalCli };
+    }).sort(function(a,b){return b.total-a.total;});
+
+    // Anios disponibles (desde los datos + actual + próximo)
+    var anios = {};
+    ocs.forEach(function(o){ if(o.semana) anios[new Date(o.semana+'T00:00:00').getFullYear()] = true; });
+    anios[anioActual] = true; anios[anioActual-1] = true;
+    var aniosArr = Object.keys(anios).map(Number).sort(function(a,b){return b-a;});
+
+    // Selector de año + selector cliente opcional
+    var selAnio = aniosArr.map(function(a){ return '<option value="'+a+'"'+(anio===a?' selected':'')+'>'+a+'</option>'; }).join('');
+    var selCli = '<option value="">Todos los clientes</option>'+cliArr.map(function(c){ return '<option value="'+c.id+'"'+(window._rep.clienteFiltro==c.id?' selected':'')+'>'+esc(c.razon_social)+'</option>'; }).join('');
+
+    // Aplicar filtro cliente
+    var cliVisibles = window._rep.clienteFiltro ? cliArr.filter(function(c){ return c.id==window._rep.clienteFiltro; }) : cliArr;
+
+    var html = '<div class="page-header">'+
+      '<div><div class="page-title">'+ico('chart','ico-lg')+' Reportes</div>'+
+      '<div class="page-sub">Evolución semanal de ocupación consolidada por cliente</div></div>'+
+    '</div>'+
+    '<div class="card"><div class="card-header" style="padding:16px;"><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:end;width:100%;">'+
+      '<div style="min-width:120px;"><label>Año</label><select id="rAnio" onchange="_repChg()">'+selAnio+'</select></div>'+
+      '<div style="min-width:240px;flex:1;"><label>Filtrar por cliente</label><select id="rCli" onchange="_repChg()">'+selCli+'</select></div>'+
+      '<div style="font-size:11px;color:var(--text3);align-self:center;">'+cliArr.length+' clientes con datos · '+ocsAnio.length+' registros</div>'+
+    '</div></div></div>';
+
+    // KPIs
+    var totMts2Global = cliArr.reduce(function(a,c){return a+c.total;},0);
+    var promSem = ocsAnio.length>0 ? totMts2Global/53 : 0;
+    var topCli = cliArr[0] || {razon_social:'—',total:0};
+    html += '<div class="kpi-grid">'+
+      '<div class="kpi purple"><div class="kpi-head"><div class="kpi-icon">'+ico('package')+'</div></div><div class="kpi-val">'+fmtInt(totMts2Global)+'</div><div class="kpi-lbl">M² Totales Registrados '+anio+'</div></div>'+
+      '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('chart')+'</div></div><div class="kpi-val">'+fmtInt(promSem)+'</div><div class="kpi-lbl">Promedio Semanal (m²)</div></div>'+
+      '<div class="kpi"><div class="kpi-head"><div class="kpi-icon">'+ico('users')+'</div></div><div class="kpi-val" style="font-size:14px;">'+esc(topCli.razon_social)+'</div><div class="kpi-lbl">Top ocupación · '+fmtInt(topCli.total)+' m²</div></div>'+
+      '<div class="kpi green"><div class="kpi-head"><div class="kpi-icon">'+ico('users')+'</div></div><div class="kpi-val">'+cliArr.length+'</div><div class="kpi-lbl">Clientes con registros</div></div>'+
+    '</div>';
+
+    // Gráfico
+    html += _repGrafico(cliVisibles, anio);
+
+    // Tabla detallada
+    html += '<div class="card"><div class="card-header"><h3>'+ico('package')+' Detalle por Cliente y Semana '+anio+'</h3><span class="count">'+cliVisibles.length+' clientes visibles</span></div>'+
+      '<div class="table-wrap" style="max-height:500px;overflow-y:auto;"><table><thead><tr><th style="position:sticky;left:0;background:var(--bg-panel);z-index:2;">Cliente</th>';
+    for(var w=1;w<=53;w++) html += '<th style="min-width:50px;text-align:center;">S'+w+'</th>';
+    html += '<th style="min-width:80px;background:var(--bg-elev);">Total</th></tr></thead><tbody>';
+    cliVisibles.forEach(function(cli){
+      html += '<tr><td style="position:sticky;left:0;background:var(--bg-panel);z-index:1;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(cli.razon_social)+'"><strong>'+esc(cli.razon_social)+'</strong></td>';
+      for(var w=1;w<=53;w++){
+        var v = cli.datos[w]||0;
+        html += '<td style="text-align:center;font-size:10px;color:'+(v>0?'var(--text)':'var(--text3)')+';">'+(v>0?fmtInt(v):'—')+'</td>';
+      }
+      html += '<td style="font-weight:700;background:var(--bg-elev);text-align:center;">'+fmtInt(cli.total)+'</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+
+    document.getElementById('mainArea').innerHTML = html;
+  } catch(e) {
+    toast('Error: '+e.message,'error');
+    document.getElementById('mainArea').innerHTML='<div class="empty">Error cargando reportes</div>';
+  }
+}
+
+function _repChg(){
+  window._rep.anio = parseInt(document.getElementById('rAnio').value);
+  var cli = document.getElementById('rCli').value;
+  window._rep.clienteFiltro = cli || null;
+  renderReportes();
+}
+
+function _repGrafico(cliVisibles, anio){
+  var COLORS = ['#f97316','#10b981','#3b82f6','#a855f7','#ec4899','#eab308','#22d3ee','#f43f5e','#84cc16','#8b5cf6','#06b6d4','#f59e0b','#14b8a6','#6366f1','#d946ef','#0ea5e9','#65a30d','#dc2626','#7c3aed','#059669'];
+  // Máximo Y
+  var maxV = 0;
+  cliVisibles.forEach(function(cli){
+    for(var w=1;w<=53;w++){ if(cli.datos[w] && cli.datos[w]>maxV) maxV = cli.datos[w]; }
+  });
+  if(maxV===0) maxV = 1;
+
+  var w = 1200, h = 380, padL = 60, padR = 20, padT = 20, padB = 50;
+  var innerW = w - padL - padR;
+  var innerH = h - padT - padB;
+  var stepX = innerW / 52; // 53 semanas → 52 intervalos
+
+  var svg = '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:380px;">';
+
+  // Grid + eje Y
+  for(var g=0; g<=5; g++){
+    var y = padT + (innerH * g / 5);
+    var val = maxV * (1 - g/5);
+    svg += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="rgba(148,163,184,.08)"/>';
+    svg += '<text x="'+(padL-6)+'" y="'+(y+3)+'" text-anchor="end" fill="#94a3b8" font-size="9">'+fmtInt(val)+' m²</text>';
+  }
+
+  // Eje X: semanas
+  for(var s=1; s<=53; s++){
+    var x = padL + (s-1)*stepX;
+    if(s===1 || s%4===0 || s===53){
+      svg += '<line x1="'+x+'" y1="'+padT+'" x2="'+x+'" y2="'+(h-padB)+'" stroke="rgba(148,163,184,.05)"/>';
+      svg += '<text x="'+x+'" y="'+(h-padB+16)+'" text-anchor="middle" fill="#94a3b8" font-size="9">S'+s+'</text>';
+    }
+  }
+
+  // Líneas por cliente
+  cliVisibles.forEach(function(cli, idx){
+    var color = COLORS[idx % COLORS.length];
+    var puntos = [];
+    for(var s=1; s<=53; s++){
+      var v = cli.datos[s]||0;
+      if(v>0){
+        var x = padL + (s-1)*stepX;
+        var y = padT + innerH - (innerH * v / maxV);
+        puntos.push({x:x, y:y, v:v, s:s});
+      }
+    }
+    if(puntos.length===0) return;
+    // Línea (path)
+    var d = puntos.map(function(p,i){ return (i===0?'M':'L')+p.x+','+p.y; }).join(' ');
+    svg += '<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>';
+    // Puntos
+    puntos.forEach(function(p){
+      svg += '<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="'+color+'"><title>'+esc(cli.razon_social)+' — S'+p.s+': '+fmtInt(p.v)+' m²</title></circle>';
+    });
+  });
+
+  svg += '</svg>';
+
+  // Leyenda
+  var leyenda = '<div style="display:flex;flex-wrap:wrap;gap:10px;padding:12px 16px;border-top:1px solid var(--border);max-height:120px;overflow-y:auto;">';
+  cliVisibles.forEach(function(cli, idx){
+    var color = COLORS[idx % COLORS.length];
+    leyenda += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:12px;height:12px;background:'+color+';border-radius:2px;display:inline-block;"></span>'+esc(cli.razon_social)+' <span style="color:var(--text3);">('+fmtInt(cli.total)+' m²)</span></div>';
+  });
+  leyenda += '</div>';
+
+  return '<div class="card"><div class="card-header"><h3>'+ico('chart')+' Evolución Semanal de Ocupación — '+anio+'</h3><span class="count">'+cliVisibles.length+' clientes · 53 semanas ISO</span></div><div style="padding:16px;overflow-x:auto;">'+svg+'</div>'+leyenda+'</div>';
+}
 
 // ═══════════════════════════════════════════════════════════════
 // ALERTAS (bell)
