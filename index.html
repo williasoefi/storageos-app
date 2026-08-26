@@ -243,6 +243,33 @@ tr:hover td{background:rgba(30,49,96,.35);}
 .rep-tooltip-title{font-weight:700;margin-bottom:2px;}
 .rep-tooltip-val{color:var(--brand);font-weight:700;}
 .rep-tooltip-sub{color:var(--text3);font-size:10px;}
+
+/* Estado semanal en modal */
+.estado-sem-panel{margin-top:12px;padding:12px;background:var(--bg-elev);border-radius:8px;border:1px solid var(--border);}
+.estado-sem-title{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.08em;margin-bottom:8px;}
+.estado-sem-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:11px;border-bottom:1px dashed var(--border);}
+.estado-sem-row:last-child{border-bottom:none;}
+.estado-sem-icon{width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;}
+.estado-sem-icon.ok{background:rgba(16,185,129,.2);color:var(--green);}
+.estado-sem-icon.pend{background:rgba(239,68,68,.2);color:var(--red);}
+.estado-sem-name{flex:1;}
+.estado-sem-val{color:var(--text3);font-size:10px;}
+
+/* Matriz estado semanal en tab Ocupaciones */
+.matriz-wrap{overflow-x:auto;}
+.matriz-tbl{width:100%;border-collapse:collapse;}
+.matriz-tbl th{padding:8px 6px;text-align:center;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;}
+.matriz-tbl th.sticky-l{position:sticky;left:0;background:var(--bg-panel);z-index:2;text-align:left;padding:8px 14px;}
+.matriz-tbl td{padding:6px;text-align:center;border-bottom:1px solid var(--border);}
+.matriz-tbl td.sticky-l{position:sticky;left:0;background:var(--bg-panel);z-index:1;text-align:left;padding:8px 14px;font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.matriz-cell{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;transition:.15s;}
+.matriz-cell.ok{background:rgba(16,185,129,.15);color:var(--green);}
+.matriz-cell.ok:hover{background:rgba(16,185,129,.3);}
+.matriz-cell.pend{background:rgba(239,68,68,.12);color:var(--red);border:1px dashed rgba(239,68,68,.4);}
+.matriz-cell.pend:hover{background:rgba(239,68,68,.25);}
+.matriz-tipo{display:inline-block;font-size:8px;padding:1px 5px;border-radius:3px;margin-left:6px;font-weight:700;vertical-align:middle;}
+.matriz-tipo.a{background:rgba(59,130,246,.15);color:var(--steel);}
+.matriz-tipo.p{background:rgba(168,85,247,.15);color:var(--purple);}
 </style>
 </head>
 <body>
@@ -1016,12 +1043,93 @@ async function renderOcupaciones(){
     var rankBodHtml = tablaRankCli('Ranking Clientes — Almacenes', 'warehouse', almPorMts2);
     var rankCliHtml = tablaRankCli('Ranking Clientes — Predios', 'land', prdPorMts2);
 
+    // ══ Matriz de estado semanal (últimas 8 semanas) ══
+    var contratosActivos = contratos.filter(function(c){ return c.activo !== false; });
+    var contActIds = {}; contratosActivos.forEach(function(c){ contActIds[c.id]=true; });
+    // Últimas 8 semanas (lunes)
+    var ultLunes = [];
+    var hoy = new Date();
+    var diaSem = hoy.getDay();
+    var lunesActual = new Date(hoy);
+    lunesActual.setDate(hoy.getDate() - (diaSem===0?6:diaSem-1));
+    lunesActual.setHours(0,0,0,0);
+    for(var i=7;i>=0;i--){
+      var d = new Date(lunesActual);
+      d.setDate(lunesActual.getDate() - i*7);
+      ultLunes.push(d.toISOString().split('T')[0]);
+    }
+    // Filas: por cada (contrato_activo, bodega)
+    var filas = [];
+    cb.forEach(function(r){
+      if(!contActIds[r.contrato_id]) return;
+      var c = contMap[r.contrato_id];
+      var b = bodMap[r.bodega_id];
+      var cli = c && c.cliente_id ? cliMap[c.cliente_id] : null;
+      filas.push({
+        contrato_id: r.contrato_id,
+        bodega_id: r.bodega_id,
+        codigo: c ? c.codigo : '—',
+        cliente: cli ? cli.razon_social : '—',
+        bodega: b ? b.nombre : '—',
+        tipo: b ? (b.tipo||'almacen') : 'almacen'
+      });
+    });
+    // Ocupaciones existentes indexadas por contrato-bodega-semana
+    var ocMap = {};
+    ocs.forEach(function(o){
+      if(!o.semana || !o.bodega_id) return;
+      var k = o.contrato_id+'|'+o.bodega_id+'|'+o.semana;
+      ocMap[k] = o.mts2_ocupados;
+    });
+    // Contar pendientes
+    var totalCeldas = filas.length * ultLunes.length;
+    var celdasRegistradas = 0;
+    filas.forEach(function(f){
+      ultLunes.forEach(function(sem){
+        if(ocMap[f.contrato_id+'|'+f.bodega_id+'|'+sem] !== undefined) celdasRegistradas++;
+      });
+    });
+    var pendientes = totalCeldas - celdasRegistradas;
+    var pctCumpl = totalCeldas>0 ? Math.round((celdasRegistradas/totalCeldas)*100) : 0;
+
+    var matrizHtml = '<div class="card">'+
+      '<div class="card-header"><h3>'+ico('package')+' Estado Semanal — Últimas 8 semanas</h3>'+
+      '<span class="count"><span style="color:var(--green);font-weight:700;">'+celdasRegistradas+'</span> registradas · <span style="color:var(--red);font-weight:700;">'+pendientes+'</span> pendientes · Cumplimiento '+pctCumpl+'%</span>'+
+      '</div>'+
+      (filas.length===0 ? '<div class="empty">Sin contratos activos con bodegas</div>' :
+      '<div class="matriz-wrap"><table class="matriz-tbl"><thead><tr>'+
+        '<th class="sticky-l">Contrato / Bodega</th>'+
+        ultLunes.map(function(s){
+          var d = new Date(s+'T00:00:00');
+          var mm = String(d.getMonth()+1).padStart(2,'0');
+          var dd = String(d.getDate()).padStart(2,'0');
+          return '<th>'+dd+'/'+mm+'</th>';
+        }).join('')+
+      '</tr></thead><tbody>'+
+      filas.map(function(f){
+        var tipoBadge = f.tipo==='predio' ? '<span class="matriz-tipo p">P</span>' : '<span class="matriz-tipo a">A</span>';
+        return '<tr>'+
+          '<td class="sticky-l" title="'+esc(f.cliente)+' — '+esc(f.bodega)+'"><strong>'+esc(f.codigo)+'</strong> · '+esc(f.bodega)+tipoBadge+'</td>'+
+          ultLunes.map(function(sem){
+            var val = ocMap[f.contrato_id+'|'+f.bodega_id+'|'+sem];
+            if(val !== undefined){
+              return '<td><div class="matriz-cell ok" title="'+fmtInt(val)+' m² registrados">✓</div></td>';
+            } else {
+              return '<td><div class="matriz-cell pend" title="Pendiente — click para registrar" onclick="_matrizClick('+f.contrato_id+','+f.bodega_id+',\''+sem+'\')">!</div></td>';
+            }
+          }).join('')+
+        '</tr>';
+      }).join('')+
+      '</tbody></table></div>')+
+    '</div>';
+
     document.getElementById('mainArea').innerHTML=
       '<div class="page-header">'+
         '<div><div class="page-title">'+ico('package','ico-lg')+' Ocupaciones</div>'+
         '<div class="page-sub">Registro semanal e indicadores de ocupación</div></div>'+
         '<button class="btn-primary" onclick="modalOcupacion()">'+ico('plus','ico-sm')+' Registrar ocupación</button>'+
       '</div>'+
+      matrizHtml +
       kpisHtml +
       rankBodHtml +
       rankCliHtml +
@@ -1056,10 +1164,11 @@ async function modalOcupacion(id){
   window._ocLineas = id ? [{bodega_id:o.bodega_id,mts2:o.mts2_ocupados}] : [];
   openModal(id?'Editar Ocupación':'Registrar Ocupación',
     '<div class="form-field"><label>Contrato *</label><select id="oCont" onchange="_ocCargarBodegas()"><option value="">— Seleccionar —</option>'+opts+'</select></div>'+
-    '<div class="form-field"><label>Semana (fecha lunes) *</label><input id="oSem" type="date" value="'+(o.semana||'')+'"/></div>'+
+    '<div class="form-field"><label>Semana (fecha lunes) *</label><input id="oSem" type="date" value="'+(o.semana||'')+'" onchange="_ocActualizarEstadoSemanal()"/></div>'+
     (id?
       '<div class="form-row"><div><label>Bodega</label><select id="oBod"><option value="">— Seleccionar —</option></select></div><div><label>M² Ocupados</label><input id="oMts" type="number" step="0.01" value="'+(o.mts2_ocupados||0)+'"/></div></div>'
       :
+      '<div id="ocEstadoPanel" class="estado-sem-panel" style="display:none;"></div>'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px;"><label style="margin:0;">Ocupación por bodega del contrato</label><button class="btn-steel btn-icon" onclick="_ocAgregarLinea()">+ Agregar bodega</button></div>'+
       '<div id="ocLineasWrap" style="min-height:40px;"><div style="padding:14px;color:var(--text3);font-size:11px;text-align:center;background:var(--bg-elev);border-radius:8px;">Seleccioná primero el contrato</div></div>'
     ),
@@ -1071,6 +1180,8 @@ async function _ocCargarBodegas(preSel){
   if(!contId){
     var wrap=document.getElementById('ocLineasWrap');
     if(wrap)wrap.innerHTML='<div style="padding:14px;color:var(--text3);font-size:11px;text-align:center;background:var(--bg-elev);border-radius:8px;">Seleccioná primero el contrato</div>';
+    var estPanel=document.getElementById('ocEstadoPanel');
+    if(estPanel) estPanel.innerHTML='';
     return;
   }
   var res = await sbFetch('/rest/v1/contrato_bodegas?contrato_id=eq.'+contId+'&select=bodega_id,mts2,bodegas(nombre)');
@@ -1085,9 +1196,61 @@ async function _ocCargarBodegas(preSel){
     }).join('');
     return;
   }
-  // Modo nuevo: NO precargar. Usuario agrega manualmente con "+ Agregar bodega"
   window._ocLineas = [];
   _ocRenderLineas();
+  _ocActualizarEstadoSemanal();
+}
+
+async function _ocActualizarEstadoSemanal(){
+  var contId = parseInt(document.getElementById('oCont').value);
+  var semana = document.getElementById('oSem').value;
+  var panel = document.getElementById('ocEstadoPanel');
+  if(!panel) return;
+  if(!contId || !semana){ panel.innerHTML=''; return; }
+  var cbs = window._ocBodegasContrato || [];
+  if(cbs.length===0){ panel.innerHTML=''; return; }
+  // Buscar ocupaciones existentes para este contrato y semana
+  var res = await sbFetch('/rest/v1/ocupaciones?contrato_id=eq.'+contId+'&semana=eq.'+semana+'&select=bodega_id,mts2_ocupados');
+  var existentes = await res.json();
+  if(!Array.isArray(existentes)) existentes=[];
+  var existMap = {};
+  existentes.forEach(function(e){ existMap[e.bodega_id] = e.mts2_ocupados; });
+  var registrados = cbs.filter(function(cb){ return existMap[cb.bodega_id] !== undefined; });
+  var pendientes = cbs.filter(function(cb){ return existMap[cb.bodega_id] === undefined; });
+  var html = '<div class="estado-sem-title">Estado de esta semana — '+cbs.length+' bodega(s) del contrato</div>';
+  if(registrados.length > 0){
+    html += registrados.map(function(cb){
+      var nm = cb.bodegas ? cb.bodegas.nombre : ('ID '+cb.bodega_id);
+      return '<div class="estado-sem-row"><div class="estado-sem-icon ok">✓</div><div class="estado-sem-name">'+esc(nm)+'</div><div class="estado-sem-val">'+fmtInt(existMap[cb.bodega_id])+' m² registrados</div></div>';
+    }).join('');
+  }
+  if(pendientes.length > 0){
+    html += pendientes.map(function(cb){
+      var nm = cb.bodegas ? cb.bodegas.nombre : ('ID '+cb.bodega_id);
+      return '<div class="estado-sem-row"><div class="estado-sem-icon pend">!</div><div class="estado-sem-name">'+esc(nm)+'</div><div class="estado-sem-val">Pendiente</div></div>';
+    }).join('');
+  }
+  if(pendientes.length > 0){
+    html += '<button class="btn-steel btn-icon" style="margin-top:8px;width:100%;padding:7px;" onclick="_ocCargarPendientes()">Cargar solo pendientes ('+pendientes.length+')</button>';
+  }
+  panel.innerHTML = html; panel.style.display = html ? "block" : "none";
+}
+
+function _ocCargarPendientes(){
+  var cbs = window._ocBodegasContrato || [];
+  var contId = parseInt(document.getElementById('oCont').value);
+  var semana = document.getElementById('oSem').value;
+  // Ya tenemos los pendientes desde el DOM: se re-consulta para asegurar
+  sbFetch('/rest/v1/ocupaciones?contrato_id=eq.'+contId+'&semana=eq.'+semana+'&select=bodega_id').then(function(r){return r.json();}).then(function(existentes){
+    if(!Array.isArray(existentes)) existentes=[];
+    var existSet={}; existentes.forEach(function(e){ existSet[e.bodega_id]=true; });
+    var pendientes = cbs.filter(function(cb){ return !existSet[cb.bodega_id]; });
+    window._ocLineas = pendientes.map(function(cb){
+      return { bodega_id: cb.bodega_id, mts2:0, nombre: cb.bodegas?cb.bodegas.nombre:('ID '+cb.bodega_id), max: cb.mts2||0 };
+    });
+    _ocRenderLineas();
+    toast(pendientes.length+' bodega(s) pendiente(s) cargada(s)','info');
+  });
 }
 function _ocRenderLineas(){
   var wrap = document.getElementById('ocLineasWrap');
@@ -1352,6 +1515,28 @@ function _proyDosGraficos(cb,bodegas,contMap,anio,escn,meses,vigenteEnMes){
 // ═══════════════════════════════════════════════════════════════
 // REPORTES — Evolución de ocupación por cliente
 // ═══════════════════════════════════════════════════════════════
+
+async function _matrizClick(contratoId, bodegaId, semana){
+  // Abrir modalOcupacion en modo nuevo, precargar contrato, semana y esa bodega
+  await modalOcupacion();
+  // Esperar a que el DOM esté listo
+  setTimeout(async function(){
+    var selC = document.getElementById('oCont');
+    var selS = document.getElementById('oSem');
+    if(selC){ selC.value = contratoId; }
+    if(selS){ selS.value = semana; }
+    await _ocCargarBodegas();
+    // Cargar solo esa bodega en las líneas
+    var cbs = window._ocBodegasContrato || [];
+    var cb = cbs.find(function(x){return x.bodega_id===bodegaId;});
+    if(cb){
+      window._ocLineas = [{ bodega_id: cb.bodega_id, mts2: 0, nombre: cb.bodegas?cb.bodegas.nombre:('ID '+cb.bodega_id), max: cb.mts2||0 }];
+      _ocRenderLineas();
+    }
+    _ocActualizarEstadoSemanal();
+  }, 100);
+}
+
 async function renderReportes(){
   if(!window._rep) window._rep = { anio: new Date().getFullYear(), view:'grandes', scale:'lineal', hidden:{} };
   document.getElementById('mainArea').innerHTML = '<div class="loading">Cargando reportes...</div>';
@@ -1369,7 +1554,8 @@ async function renderReportes(){
 
     var anio = window._rep.anio;
     var anioActual = new Date().getFullYear();
-    var semanasEnAnio = _getISOWeeksInYear(anio);
+    var MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    var semanasEnAnio = 12; // Ahora son 12 meses
 
     function getWeekNum(dateStr){
       var d = new Date(dateStr+'T00:00:00');
@@ -1384,22 +1570,44 @@ async function renderReportes(){
       return new Date(o.semana+'T00:00:00').getFullYear() === anio;
     });
 
-    var datos = {};
+    // Agrupar por cliente y MES (1-12). Suma m² de la semana, luego promedio por mes.
+    // datosWeek[cid][mes] = { suma: X, cuenta: N }  → promedio = suma/cuenta
+    var datosWeek = {};
     ocsAnio.forEach(function(o){
       var c = contMap[o.contrato_id];
       if(!c || !c.cliente_id) return;
       var cid = c.cliente_id;
-      var wn = getWeekNum(o.semana);
-      if(!datos[cid]) datos[cid] = {};
-      if(!datos[cid][wn]) datos[cid][wn] = 0;
-      datos[cid][wn] += parseFloat(o.mts2_ocupados||0);
+      var d = new Date(o.semana+'T00:00:00');
+      var mes = d.getMonth()+1; // 1-12
+      // Un registro por (cliente, semana) sumado si hay varias bodegas esa semana
+      var key = cid+'|'+mes+'|'+o.semana;
+      if(!datosWeek[cid]) datosWeek[cid] = {};
+      if(!datosWeek[cid][mes]) datosWeek[cid][mes] = {};
+      if(!datosWeek[cid][mes][o.semana]) datosWeek[cid][mes][o.semana] = 0;
+      datosWeek[cid][mes][o.semana] += parseFloat(o.mts2_ocupados||0);
+    });
+    // Ahora convertir a promedio simple por mes
+    var datos = {};
+    Object.keys(datosWeek).forEach(function(cid){
+      datos[cid] = {};
+      Object.keys(datosWeek[cid]).forEach(function(mes){
+        var semanasMes = Object.keys(datosWeek[cid][mes]);
+        var suma = semanasMes.reduce(function(a,s){return a+datosWeek[cid][mes][s];},0);
+        datos[cid][mes] = suma / semanasMes.length;
+      });
     });
 
     var COLORS = ['#f97316','#10b981','#3b82f6','#a855f7','#ec4899','#eab308','#22d3ee','#f43f5e','#84cc16','#8b5cf6','#06b6d4','#f59e0b','#14b8a6','#6366f1','#d946ef','#0ea5e9','#65a30d','#dc2626','#7c3aed','#059669'];
 
+    // El total ahora es la suma de m² registrados originales (para clasificar y ordenar)
+    var totalPorCli = {};
+    ocsAnio.forEach(function(o){
+      var c = contMap[o.contrato_id];
+      if(!c || !c.cliente_id) return;
+      totalPorCli[c.cliente_id] = (totalPorCli[c.cliente_id]||0) + parseFloat(o.mts2_ocupados||0);
+    });
     var cliArr = Object.keys(datos).map(function(cid){
-      var totalCli = 0;
-      Object.keys(datos[cid]).forEach(function(w){ totalCli += datos[cid][w]; });
+      var totalCli = totalPorCli[cid]||0;
       var tipo = totalCli >= 10000 ? 'grande' : totalCli >= 1000 ? 'mediano' : 'pequeno';
       return { id:cid, razon_social:(cliMap[cid]||{}).razon_social||'—', datos:datos[cid], total:totalCli, tipo:tipo };
     }).sort(function(a,b){return b.total-a.total;});
@@ -1415,7 +1623,14 @@ async function renderReportes(){
 
     // KPIs
     var totMts2Global = cliArr.reduce(function(a,c){return a+c.total;},0);
-    var promSem = ocsAnio.length>0 ? totMts2Global/semanasEnAnio : 0;
+    var promMes = 0;
+    Object.keys(datos).forEach(function(cid){
+      var meses = Object.keys(datos[cid]);
+      if(meses.length>0){
+        var s = meses.reduce(function(a,m){return a+datos[cid][m];},0);
+        promMes += s/meses.length;
+      }
+    });
     var topCli = cliArr[0] || {razon_social:'—',total:0};
 
     // Años disponibles
@@ -1440,11 +1655,11 @@ async function renderReportes(){
     '</div>'+
     '<div class="card"><div class="card-header" style="padding:16px;"><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:end;width:100%;">'+
       '<div style="min-width:120px;"><label>Año</label><select id="rAnio" onchange="_repChgAnio()">'+selAnio+'</select></div>'+
-      '<div style="font-size:11px;color:var(--text3);align-self:center;">'+cliArr.length+' clientes con datos · '+ocsAnio.length+' registros · '+semanasEnAnio+' semanas ISO en '+anio+'</div>'+
+      '<div style="font-size:11px;color:var(--text3);align-self:center;">'+cliArr.length+' clientes con datos · '+ocsAnio.length+' registros semanales · Vista mensual promedio</div>'+
     '</div></div></div>'+
     '<div class="kpi-grid">'+
       '<div class="kpi purple"><div class="kpi-head"><div class="kpi-icon">'+ico('package')+'</div></div><div class="kpi-val">'+fmtInt(totMts2Global)+'</div><div class="kpi-lbl">M² Totales Registrados '+anio+'</div></div>'+
-      '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('chart')+'</div></div><div class="kpi-val">'+fmtInt(promSem)+'</div><div class="kpi-lbl">Promedio Semanal (m²)</div></div>'+
+      '<div class="kpi steel"><div class="kpi-head"><div class="kpi-icon">'+ico('chart')+'</div></div><div class="kpi-val">'+fmtInt(promMes)+'</div><div class="kpi-lbl">Promedio Mensual (m²)</div></div>'+
       '<div class="kpi"><div class="kpi-head"><div class="kpi-icon">'+ico('users')+'</div></div><div class="kpi-val" style="font-size:14px;">'+esc(topCli.razon_social)+'</div><div class="kpi-lbl">Top ocupación · '+fmtInt(topCli.total)+' m²</div></div>'+
       '<div class="kpi green"><div class="kpi-head"><div class="kpi-icon">'+ico('users')+'</div></div><div class="kpi-val">'+cliArr.length+'</div><div class="kpi-lbl">Clientes con registros</div></div>'+
     '</div>'+
@@ -1455,7 +1670,7 @@ async function renderReportes(){
       '<button class="rep-tab '+(view==='todos'?'active':'')+'" onclick="_repChgView(\'todos\')">Todos ('+counts.todos+')</button>'+
     '</div>'+
     '<div class="card">'+
-      '<div class="card-header"><h3>'+ico('chart')+' '+titles[view]+' · '+anio+'</h3><span class="count">'+cliVisibles.length+' de '+cliVista.length+' visibles · '+semanasEnAnio+' semanas ISO</span></div>'+
+      '<div class="card-header"><h3>'+ico('chart')+' '+titles[view]+' · '+anio+'</h3><span class="count">'+cliVisibles.length+' de '+cliVista.length+' visibles · 12 meses (promedio)</span></div>'+
       '<div class="rep-grid">'+
         '<div class="rep-rank-panel">'+
           '<h4>Top del grupo</h4>'+
@@ -1476,17 +1691,20 @@ async function renderReportes(){
       '</div>'+
     '</div>'+
     // Tabla detallada
-    '<div class="card"><div class="card-header"><h3>'+ico('package')+' Detalle por Cliente y Semana '+anio+'</h3><span class="count">'+cliVista.length+' clientes en vista</span></div>'+
+    '<div class="card"><div class="card-header"><h3>'+ico('package')+' Detalle por Cliente y Mes '+anio+' (Promedio)</h3><span class="count">'+cliVista.length+' clientes en vista</span></div>'+
       '<div class="table-wrap" style="max-height:500px;overflow-y:auto;"><table><thead><tr><th style="position:sticky;left:0;background:var(--bg-panel);z-index:2;">Cliente</th>';
-    for(var w=1;w<=semanasEnAnio;w++) html += '<th style="min-width:50px;text-align:center;">S'+w+'</th>';
-    html += '<th style="min-width:80px;background:var(--bg-elev);">Total</th></tr></thead><tbody>';
+    for(var w=1;w<=12;w++) html += '<th style="min-width:70px;text-align:center;">'+MESES[w-1]+'</th>';
+    html += '<th style="min-width:90px;background:var(--bg-elev);">Prom. Año</th></tr></thead><tbody>';
     cliVista.forEach(function(cli){
       html += '<tr><td style="position:sticky;left:0;background:var(--bg-panel);z-index:1;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(cli.razon_social)+'"><strong>'+esc(cli.razon_social)+'</strong></td>';
-      for(var w=1;w<=semanasEnAnio;w++){
+      var mesesConDatos = 0, sumMeses = 0;
+      for(var w=1;w<=12;w++){
         var v = cli.datos[w]||0;
-        html += '<td style="text-align:center;font-size:10px;color:'+(v>0?'var(--text)':'var(--text3)')+';">'+(v>0?fmtInt(v):'—')+'</td>';
+        if(v>0){ mesesConDatos++; sumMeses+=v; }
+        html += '<td style="text-align:center;font-size:11px;color:'+(v>0?'var(--text)':'var(--text3)')+';">'+(v>0?fmtInt(v):'—')+'</td>';
       }
-      html += '<td style="font-weight:700;background:var(--bg-elev);text-align:center;">'+fmtInt(cli.total)+'</td></tr>';
+      var promAnio = mesesConDatos>0 ? sumMeses/mesesConDatos : 0;
+      html += '<td style="font-weight:700;background:var(--bg-elev);text-align:center;">'+fmtInt(promAnio)+'</td></tr>';
     });
     html += '</tbody></table></div></div>';
 
@@ -1577,14 +1795,15 @@ function _repLegendHtml(vista){
     '</div>';
   }).join('');
 }
-function _repRenderChart(visibles, semanas){
+function _repRenderChart(visibles, meses){
+  var MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   var W=800, H=440, padL=60, padR=20, padT=20, padB=40;
   var innerW = W-padL-padR, innerH = H-padT-padB;
-  var stepX = semanas>1 ? innerW / (semanas-1) : innerW;
+  var stepX = innerW / 11; // 12 meses → 11 intervalos
 
   var maxV = 0;
   visibles.forEach(function(c){
-    for(var s=1;s<=semanas;s++){ if(c.datos[s] > maxV) maxV = c.datos[s]; }
+    for(var m=1;m<=12;m++){ if(c.datos[m] > maxV) maxV = c.datos[m]; }
   });
   if(maxV===0) maxV=1;
 
@@ -1613,22 +1832,22 @@ function _repRenderChart(visibles, semanas){
     svg += '<text x="'+(padL-6)+'" y="'+(y+3)+'" text-anchor="end" fill="#94a3b8" font-size="10">'+fmtInt(v)+' m²</text>';
   });
 
-  for(var s=1;s<=semanas;s++){
-    var x = padL + (s-1)*stepX;
-    if(s===1 || s%4===0 || s===semanas){
-      svg += '<text x="'+x+'" y="'+(H-padB+16)+'" text-anchor="middle" fill="#94a3b8" font-size="10">S'+s+'</text>';
-    }
+  // Eje X: 12 meses
+  for(var m=1;m<=12;m++){
+    var x = padL + (m-1)*stepX;
+    svg += '<line x1="'+x+'" y1="'+padT+'" x2="'+x+'" y2="'+(H-padB)+'" stroke="rgba(148,163,184,.04)"/>';
+    svg += '<text x="'+x+'" y="'+(H-padB+16)+'" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">'+MESES[m-1]+'</text>';
   }
 
   var maxTotal = visibles.length > 0 ? Math.max.apply(null, visibles.map(function(c){return c.total;})) : 0;
   visibles.forEach(function(cli){
     var puntos = [];
-    for(var s=1;s<=semanas;s++){
-      var v = cli.datos[s]||0;
+    for(var m=1;m<=12;m++){
+      var v = cli.datos[m]||0;
       if(v>0){
-        var x = padL + (s-1)*stepX;
+        var x = padL + (m-1)*stepX;
         var y = scaleY(v);
-        puntos.push({x:x, y:y, v:v, s:s});
+        puntos.push({x:x, y:y, v:v, m:m});
       }
     }
     if(puntos.length===0) return;
@@ -1637,7 +1856,7 @@ function _repRenderChart(visibles, semanas){
     var d = puntos.map(function(p,i){return (i===0?'M':'L')+p.x+','+p.y;}).join(' ');
     svg += '<path d="'+d+'" fill="none" stroke="'+cli.color+'" stroke-width="'+strokeW+'" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>';
     puntos.forEach(function(p){
-      svg += '<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="'+cli.color+'" data-cli="'+esc(cli.razon_social)+'" data-val="'+p.v+'" data-sem="'+p.s+'" class="rep-pt" style="cursor:pointer;"/>';
+      svg += '<circle cx="'+p.x+'" cy="'+p.y+'" r="4" fill="'+cli.color+'" data-cli="'+esc(cli.razon_social)+'" data-val="'+p.v+'" data-sem="'+MESES[p.m-1]+'" class="rep-pt" style="cursor:pointer;"/>';
     });
   });
 
@@ -1650,7 +1869,7 @@ function _repAttachTooltips(){
       var tt = document.getElementById('repTooltip');
       if(!tt) return;
       tt.innerHTML = '<div class="rep-tooltip-title">'+pt.getAttribute('data-cli')+'</div>'+
-        '<div class="rep-tooltip-sub">Semana '+pt.getAttribute('data-sem')+' · '+window._rep.anio+'</div>'+
+        '<div class="rep-tooltip-sub">'+pt.getAttribute('data-sem')+' · '+window._rep.anio+' (promedio)</div>'+
         '<div class="rep-tooltip-val">'+fmtInt(parseFloat(pt.getAttribute('data-val')))+' m²</div>';
       var wrap = document.getElementById('repChartWrap').getBoundingClientRect();
       var pr = pt.getBoundingClientRect();
