@@ -2144,55 +2144,28 @@ async function renderFacturacion(){
   var resC=await sbFetch('/rest/v1/clientes_almacen?select=id,razon_social&order=razon_social');
   var clientes=resC.ok?await resC.json():[];
 
-  // KPIs
-  var totalFacturado=0;var totalRegistros=resumen.length;
-  var clientesSet={};
-  resumen.forEach(function(r){totalFacturado+=parseFloat(r.total_monto)||0;clientesSet[r.cliente_nombre||r.cliente]=true;});
-  var totalClientes=Object.keys(clientesSet).length;
-
-  // Agrupar por cliente para tabla
-  var porCliente={};
-  resumen.forEach(function(r){
-    var cn=r.cliente_nombre||r.cliente;
-    if(!porCliente[cn])porCliente[cn]={nombre:cn,total:0,registros:0,meses:{}};
-    porCliente[cn].total+=parseFloat(r.total_monto)||0;
-    porCliente[cn].registros++;
-    var key=r.periodo_anio+'-'+(r.periodo_mes<10?'0':'')+r.periodo_mes;
-    porCliente[cn].meses[key]=parseFloat(r.total_monto)||0;
-  });
-  var clientesList=Object.values(porCliente).sort(function(a,b){return b.total-a.total;});
-
-  // Meses únicos para columnas
-  var mesesUnicos={};
-  resumen.forEach(function(r){var k=r.periodo_anio+'-'+(r.periodo_mes<10?'0':'')+r.periodo_mes;mesesUnicos[k]=true;});
-  var mesesArr=Object.keys(mesesUnicos).sort();
+  // Nombres únicos de clientes con datos
+  var clientesConDatos={};
+  resumen.forEach(function(r){var cn=r.cliente_nombre||r.cliente;clientesConDatos[cn]=true;});
+  var clienteNames=Object.keys(clientesConDatos).sort();
 
   var html='<div class="page-header"><div><div class="page-title">'+
     '<svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>'+
     ' Facturación por Cliente</div>'+
     '<div class="page-sub">Análisis de facturación por cliente y línea de servicio</div></div>'+
-    '<div style="display:flex;gap:8px;">'+
+    '<div style="display:flex;gap:8px;align-items:center;">'+
+    '<select id="filtGlobalCliente" onchange="aplicarFiltroGlobal()" style="width:auto;min-width:200px;padding:7px 10px;font-size:12px;">'+
+    '<option value="">— Todos los Clientes —</option>';
+  clienteNames.forEach(function(c){html+='<option value="'+esc(c)+'">'+esc(c)+'</option>';});
+  html+='</select>'+
     '<button class="btn-primary" onclick="modalCargarPDF()">'+
     '<svg class="ico ico-sm" viewBox="0 0 24 24" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+
     'Cargar PDF</button>'+
     '<button class="btn-ghost" onclick="modalCatalogoServicios()">Catálogo</button>'+
     '</div></div>';
 
-  // KPIs
-  html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;">'+
-    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
-    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Total Facturado</div>'+
-    '<div style="font-size:22px;font-weight:800;color:var(--green);">$'+fmt(totalFacturado)+'</div></div>'+
-    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
-    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Clientes</div>'+
-    '<div style="font-size:22px;font-weight:800;color:var(--steel);">'+totalClientes+'</div></div>'+
-    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
-    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Períodos Cargados</div>'+
-    '<div style="font-size:22px;font-weight:800;color:var(--brand);">'+totalRegistros+'</div></div>'+
-    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
-    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Meses Registrados</div>'+
-    '<div style="font-size:22px;font-weight:800;color:var(--purple);">'+mesesArr.length+'</div></div>'+
-    '</div>';
+  // KPIs (dynamic)
+  html+='<div id="factKpis"></div>';
 
   // Tabs
   html+='<div style="display:flex;gap:4px;margin-bottom:14px;">'+
@@ -2204,9 +2177,65 @@ async function renderFacturacion(){
   html+='<div id="factContent"></div>';
   area.innerHTML=html;
 
-  // Store data globally for tabs
-  window._factData={resumen:resumen,servicios:servicios,clientes:clientes,clientesList:clientesList,mesesArr:mesesArr,porCliente:porCliente};
-  tabFact('resumen');
+  // Store ALL data globally
+  window._factDataAll={resumen:resumen,servicios:servicios,clientes:clientes};
+  window._factActiveTab='resumen';
+  aplicarFiltroGlobal();
+}
+
+function aplicarFiltroGlobal(){
+  var filtro=document.getElementById('filtGlobalCliente');
+  var fc=filtro?filtro.value:'';
+  var all=window._factDataAll;
+
+  // Filtrar datos según cliente seleccionado
+  var resumen=fc?all.resumen.filter(function(r){return(r.cliente_nombre||r.cliente)===fc;}):all.resumen;
+  var servicios=fc?all.servicios.filter(function(s){return(s.cliente_nombre||s.cliente)===fc;}):all.servicios;
+
+  // KPIs
+  var totalFacturado=0;var totalRegistros=resumen.length;
+  var clientesSet={};
+  resumen.forEach(function(r){totalFacturado+=parseFloat(r.total_monto)||0;clientesSet[r.cliente_nombre||r.cliente]=true;});
+  var totalClientes=Object.keys(clientesSet).length;
+
+  // Agrupar por cliente
+  var porCliente={};
+  resumen.forEach(function(r){
+    var cn=r.cliente_nombre||r.cliente;
+    if(!porCliente[cn])porCliente[cn]={nombre:cn,total:0,registros:0,meses:{}};
+    porCliente[cn].total+=parseFloat(r.total_monto)||0;
+    porCliente[cn].registros++;
+    var key=r.periodo_anio+'-'+(r.periodo_mes<10?'0':'')+r.periodo_mes;
+    if(!porCliente[cn].meses[key])porCliente[cn].meses[key]=0;
+    porCliente[cn].meses[key]+=parseFloat(r.total_monto)||0;
+  });
+  var clientesList=Object.values(porCliente).sort(function(a,b){return b.total-a.total;});
+
+  // Meses únicos
+  var mesesUnicos={};
+  resumen.forEach(function(r){var k=r.periodo_anio+'-'+(r.periodo_mes<10?'0':'')+r.periodo_mes;mesesUnicos[k]=true;});
+  var mesesArr=Object.keys(mesesUnicos).sort();
+
+  // Render KPIs
+  var khtml='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;">'+
+    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Total Facturado'+(fc?' · '+esc(fc):'')+'</div>'+
+    '<div style="font-size:22px;font-weight:800;color:var(--green);">$'+fmt(totalFacturado)+'</div></div>'+
+    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Clientes</div>'+
+    '<div style="font-size:22px;font-weight:800;color:var(--steel);">'+totalClientes+'</div></div>'+
+    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Períodos Cargados</div>'+
+    '<div style="font-size:22px;font-weight:800;color:var(--brand);">'+totalRegistros+'</div></div>'+
+    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Meses Registrados</div>'+
+    '<div style="font-size:22px;font-weight:800;color:var(--purple);">'+mesesArr.length+'</div></div>'+
+    '</div>';
+  document.getElementById('factKpis').innerHTML=khtml;
+
+  // Update filtered data
+  window._factData={resumen:resumen,servicios:servicios,clientes:all.clientes,clientesList:clientesList,mesesArr:mesesArr,porCliente:porCliente,filtroCliente:fc};
+  tabFact(window._factActiveTab||'resumen');
 }
 
 function tabFact(tab){
@@ -2218,6 +2247,7 @@ function tabFact(tab){
   document.getElementById('tabTendencia').className=tab==='tendencia'?'btn-primary':'btn-ghost';
 
   var d=window._factData;
+  window._factActiveTab=tab;
   if(tab==='resumen')renderTabResumen(d);
   else if(tab==='detalle')renderTabDetalle(d);
   else renderTabTendencia(d);
@@ -2264,17 +2294,10 @@ function renderTabDetalle(d){
   var el=document.getElementById('factContent');
   if(d.servicios.length===0){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);">No hay datos de servicios.</div>';return;}
 
-  // Filtro por cliente
-  var clientesU={};d.servicios.forEach(function(s){clientesU[s.cliente_nombre||s.cliente]=true;});
-  var clist=Object.keys(clientesU).sort();
-
+  // Filtro por categoría (cliente se filtra globalmente)
   var html='<div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;">'+
-    '<label style="margin:0;font-size:11px;">Cliente:</label>'+
-    '<select id="filtCliente" onchange="filtrarDetalle()" style="width:auto;min-width:200px;padding:6px 10px;">'+
-    '<option value="">— Todos —</option>';
-  clist.forEach(function(c){html+='<option value="'+esc(c)+'">'+esc(c)+'</option>';});
-  html+='</select>'+
-    '<label style="margin:0 0 0 10px;font-size:11px;">Categoría:</label>'+
+    '<input type="hidden" id="filtCliente" value="'+(d.filtroCliente||'')+'"/>'+
+    '<label style="margin:0;font-size:11px;">Categoría:</label>'+
     '<select id="filtCat" onchange="filtrarDetalle()" style="width:auto;min-width:160px;padding:6px 10px;">'+
     '<option value="">— Todas —</option>';
   var catsU={};d.servicios.forEach(function(s){catsU[s.categoria]=true;});
@@ -2288,11 +2311,9 @@ function renderTabDetalle(d){
 
 function filtrarDetalle(){
   var d=window._factData;
-  var fc=document.getElementById('filtCliente').value;
   var fcat=document.getElementById('filtCat').value;
 
   var filtered=d.servicios.filter(function(s){
-    if(fc&&(s.cliente_nombre||s.cliente)!==fc)return false;
     if(fcat&&s.categoria!==fcat)return false;
     return true;
   });
@@ -2430,9 +2451,11 @@ function renderTabTendencia(d){
 }
 
 function verDetalleCliente(nombre){
+  var gf=document.getElementById('filtGlobalCliente');
+  if(gf){gf.value=nombre;}
+  aplicarFiltroGlobal();
+  window._factActiveTab='detalle';
   tabFact('detalle');
-  var sel=document.getElementById('filtCliente');
-  if(sel){sel.value=nombre;filtrarDetalle();}
 }
 
 // Modal: Cargar PDF
