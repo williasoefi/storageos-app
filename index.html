@@ -2431,8 +2431,9 @@ function renderTabTendencia(d){
 }
 
 function verDetalleCliente(nombre){
-  document.getElementById('filtCliente').value=nombre;
   tabFact('detalle');
+  var sel=document.getElementById('filtCliente');
+  if(sel){sel.value=nombre;filtrarDetalle();}
 }
 
 // Modal: Cargar PDF
