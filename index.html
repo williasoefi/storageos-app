@@ -2131,6 +2131,7 @@ function fnCategoria(codigo){
 var CAT_LABELS={cargos_pagos:'Cargos/Pagos',carga_descarga:'Carga/Descarga',transporte:'Transporte',generales:'Generales',horas_extra:'Horas Extra',inspeccion:'Inspección',administracion:'Administración',almacenaje:'Almacenaje',servicios_bodega:'Serv. Bodega',seguros:'Seguros',puerto_cepa:'Puerto/CEPA',inventario:'Inventario',mensajeria_admin:'Mensajería/Admin',aduana:'Aduana',vehiculos:'Vehículos',otros:'Otros',sin_categoria:'Sin categoría'};
 
 var MESES_LABEL=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function fmtC(n){var v=Math.round(parseFloat(n)||0);return v.toLocaleString('en-US');}
 
 async function renderFacturacion(){
   var area=document.getElementById('mainArea');
@@ -2228,34 +2229,33 @@ function renderTabResumen(d){
   if(d.clientesList.length===0){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);">No hay datos. Cargá un PDF para comenzar.</div>';return;}
 
   var html='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
-    '<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;">'+
     '<thead><tr style="background:var(--bg-elev);">'+
-    '<th style="padding:10px 14px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);border-bottom:1px solid var(--border);">Cliente</th>';
+    '<th style="padding:6px 8px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);border-bottom:1px solid var(--border);white-space:nowrap;">Cliente</th>';
   d.mesesArr.forEach(function(m){
     var parts=m.split('-');
-    html+='<th style="padding:10px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);border-bottom:1px solid var(--border);">'+MESES_LABEL[parseInt(parts[1])]+' '+parts[0].slice(2)+'</th>';
+    html+='<th style="padding:6px 4px;text-align:right;font-size:9px;text-transform:uppercase;letter-spacing:.02em;color:var(--text3);border-bottom:1px solid var(--border);white-space:nowrap;">'+MESES_LABEL[parseInt(parts[1])]+' '+parts[0].slice(2)+'</th>';
   });
-  html+='<th style="padding:10px 14px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--brand);border-bottom:1px solid var(--border);">Total</th></tr></thead><tbody>';
+  html+='<th style="padding:6px 8px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--brand);border-bottom:1px solid var(--border);">Total</th></tr></thead><tbody>';
 
   d.clientesList.forEach(function(c,idx){
     html+='<tr style="border-bottom:1px solid var(--border);'+(idx%2?'background:var(--bg-elev);':'')+'cursor:pointer;" onclick="verDetalleCliente(\''+esc(c.nombre)+'\')">'+
-      '<td style="padding:8px 14px;font-weight:600;">'+esc(c.nombre)+'</td>';
+      '<td style="padding:5px 8px;font-weight:600;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;">'+esc(c.nombre)+'</td>';
     d.mesesArr.forEach(function(m){
       var v=c.meses[m]||0;
-      html+='<td style="padding:8px;text-align:right;color:'+(v>0?'var(--text)':'var(--text3)')+';">'+( v>0?'$'+fmt(v):'—')+'</td>';
+      html+='<td style="padding:5px 4px;text-align:right;color:'+(v>0?'var(--text)':'var(--text3)')+';">'+(v>0?'$'+fmtC(v):'—')+'</td>';
     });
-    html+='<td style="padding:8px 14px;text-align:right;font-weight:700;color:var(--green);">$'+fmt(c.total)+'</td></tr>';
+    html+='<td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--green);">$'+fmtC(c.total)+'</td></tr>';
   });
 
-  // Totals row
-  html+='<tr style="background:var(--bg-elev);font-weight:700;"><td style="padding:10px 14px;">TOTAL</td>';
+  html+='<tr style="background:var(--bg-elev);font-weight:700;"><td style="padding:6px 8px;">TOTAL</td>';
   var grandTotal=0;
   d.mesesArr.forEach(function(m){
     var colTotal=0;d.clientesList.forEach(function(c){colTotal+=(c.meses[m]||0);});
     grandTotal+=colTotal;
-    html+='<td style="padding:10px 8px;text-align:right;color:var(--brand);">$'+fmt(colTotal)+'</td>';
+    html+='<td style="padding:6px 4px;text-align:right;color:var(--brand);">$'+fmtC(colTotal)+'</td>';
   });
-  html+='<td style="padding:10px 14px;text-align:right;color:var(--green);font-size:14px;">$'+fmt(grandTotal)+'</td></tr>';
+  html+='<td style="padding:6px 8px;text-align:right;color:var(--green);font-size:12px;">$'+fmtC(grandTotal)+'</td></tr>';
 
   html+='</tbody></table></div>';
   el.innerHTML=html;
@@ -2311,17 +2311,17 @@ function filtrarDetalle(){
   var servList=Object.values(byService).sort(function(a,b){return b.total-a.total;});
 
   var html='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
-    '<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;">'+
     '<thead><tr style="background:var(--bg-elev);">'+
-    '<th style="padding:10px 14px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Código</th>'+
-    '<th style="padding:10px 14px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Servicio</th>'+
-    '<th style="padding:10px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Categoría</th>';
+    '<th style="padding:6px 6px;text-align:left;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);white-space:nowrap;">Cód.</th>'+
+    '<th style="padding:6px 6px;text-align:left;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Servicio</th>'+
+    '<th style="padding:6px 4px;text-align:left;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Cat.</th>';
   d.mesesArr.forEach(function(m){
     var parts=m.split('-');
-    html+='<th style="padding:10px 8px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">'+MESES_LABEL[parseInt(parts[1])]+' '+parts[0].slice(2)+'</th>';
+    html+='<th style="padding:6px 4px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);white-space:nowrap;">'+MESES_LABEL[parseInt(parts[1])]+' '+parts[0].slice(2)+'</th>';
   });
-  html+='<th style="padding:10px 14px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--brand);border-bottom:1px solid var(--border);">Total</th>';
-  html+='<th style="padding:10px 8px;text-align:center;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Tend.</th>';
+  html+='<th style="padding:6px 6px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--brand);border-bottom:1px solid var(--border);">Total</th>';
+  html+='<th style="padding:6px 4px;text-align:center;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">T</th>';
   html+='</tr></thead><tbody>';
 
   servList.forEach(function(s,idx){
@@ -2336,15 +2336,15 @@ function filtrarDetalle(){
     }
 
     html+='<tr style="border-bottom:1px solid var(--border);'+(idx%2?'background:var(--bg-elev);':'')+'">'+
-      '<td style="padding:8px 14px;font-weight:600;font-family:monospace;color:var(--steel);">'+esc(s.codigo)+'</td>'+
-      '<td style="padding:8px 14px;">'+esc(s.servicio)+'</td>'+
-      '<td style="padding:8px;"><span style="background:var(--brand-soft);color:var(--brand);padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;">'+(CAT_LABELS[s.categoria]||s.categoria)+'</span></td>';
+      '<td style="padding:4px 6px;font-weight:600;font-family:monospace;font-size:10px;color:var(--steel);white-space:nowrap;">'+esc(s.codigo)+'</td>'+
+      '<td style="padding:4px 6px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(s.servicio)+'">'+esc(s.servicio)+'</td>'+
+      '<td style="padding:4px 4px;"><span style="background:var(--brand-soft);color:var(--brand);padding:1px 5px;border-radius:8px;font-size:9px;font-weight:600;white-space:nowrap;">'+(CAT_LABELS[s.categoria]||s.categoria)+'</span></td>';
     d.mesesArr.forEach(function(m){
       var v=s.meses[m]||0;
-      html+='<td style="padding:8px;text-align:right;color:'+(v>0?'var(--text)':'var(--text3)')+';">'+(v>0?'$'+fmt(v):'—')+'</td>';
+      html+='<td style="padding:4px 4px;text-align:right;color:'+(v>0?'var(--text)':'var(--text3)')+';">'+(v>0?'$'+fmtC(v):'—')+'</td>';
     });
-    html+='<td style="padding:8px 14px;text-align:right;font-weight:700;color:var(--green);">$'+fmt(s.total)+'</td>';
-    html+='<td style="padding:8px;text-align:center;font-size:14px;">'+trend+'</td></tr>';
+    html+='<td style="padding:4px 6px;text-align:right;font-weight:700;color:var(--green);">$'+fmtC(s.total)+'</td>';
+    html+='<td style="padding:4px;text-align:center;font-size:12px;">'+trend+'</td></tr>';
   });
 
   html+='</tbody></table></div>';
