@@ -325,6 +325,10 @@ tr:hover td{background:rgba(30,49,96,.35);}
       <svg class="ico" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       Contratos
     </div>
+    <div class="sb-item" data-page="facturacion" onclick="navTo('facturacion')">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+      Facturación
+    </div>
     <div class="sb-section">Análisis</div>
     <div class="sb-item" data-page="proyeccion" onclick="navTo('proyeccion')">
       <svg class="ico" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
@@ -436,11 +440,11 @@ function showApp(){
   if(_user&&_user.email){var name=_user.email.split('@')[0];document.getElementById('uName').textContent=name;document.getElementById('uAvatar').textContent=name[0].toUpperCase();}
 }
 
-var CRUMBS={dashboard:'Dashboard',bodegas:'Bodegas',clientes:'Clientes',contratos:'Contratos',ocupaciones:'Ocupaciones',proyeccion:'Proyección',reportes:'Reportes'};
+var CRUMBS={dashboard:'Dashboard',bodegas:'Bodegas',clientes:'Clientes',contratos:'Contratos',facturacion:'Facturación',ocupaciones:'Ocupaciones',proyeccion:'Proyección',reportes:'Reportes'};
 function navTo(page){
   document.querySelectorAll('.sb-item').forEach(function(t){t.classList.toggle('active',t.getAttribute('data-page')===page);});
   document.getElementById('crumb').textContent=CRUMBS[page]||page;
-  var pages={dashboard:renderDashboard,bodegas:renderBodegas,clientes:renderClientes,contratos:renderContratos,ocupaciones:renderOcupaciones,proyeccion:renderProyeccion,reportes:renderReportes};
+  var pages={dashboard:renderDashboard,bodegas:renderBodegas,clientes:renderClientes,contratos:renderContratos,facturacion:renderFacturacion,ocupaciones:renderOcupaciones,proyeccion:renderProyeccion,reportes:renderReportes};
   if(pages[page])pages[page]();
 }
 function toast(msg,type){var el=document.getElementById('toast');el.textContent=msg;el.className='toast show '+(type||'success');setTimeout(function(){el.className='toast';},3000);}
@@ -1957,6 +1961,591 @@ function verAlertas(){
     }
   }
   openModal('Alertas de Contratos', '<div style="margin:-20px;">'+body+'</div>', '<button class="btn-ghost" onclick="closeModal()">Cerrar</button>');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FACTURACIÓN — Carga PDF, catálogo auto, análisis por servicio
+// ═══════════════════════════════════════════════════════════════
+
+// Cargar pdf.js dinámicamente
+var _pdfjsLoaded=false;
+function loadPdfJs(){
+  return new Promise(function(resolve){
+    if(_pdfjsLoaded){resolve();return;}
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload=function(){
+      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      _pdfjsLoaded=true;resolve();
+    };
+    document.head.appendChild(s);
+  });
+}
+
+// Parser: extrae cliente, período y líneas del PDF
+async function parsePdfFacturacion(file){
+  await loadPdfJs();
+  var buf=await file.arrayBuffer();
+  var pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  var allText='';
+  for(var i=1;i<=pdf.numPages;i++){
+    var pg=await pdf.getPage(i);
+    var tc=await pg.getTextContent();
+    var items=tc.items.map(function(it){return it.str;});
+    allText+=items.join(' ')+'\n';
+  }
+
+  // Extraer cliente
+  var cliente='';
+  var mCliente=allText.match(/(?:Calvoconservas|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s+(?:El Salvador|de C\.V\.|S\.A\.|S\.A\. de C\.V\.|Inc\.|LLC|S\.de R\.L\.))+)/i);
+  // More robust: look for text between date range line and "Factura No"
+  var mCliente2=allText.match(/al\s+\d{2}\/\w+\/\d{2,4}\s+([\s\S]*?)Factura\s*No/i);
+  if(mCliente2) cliente=mCliente2[1].replace(/\n/g,' ').trim();
+  else if(mCliente) cliente=mCliente[0].trim();
+
+  // Extraer período
+  var fechaInicio=null,fechaFin=null,periodoMes=0,periodoAnio=0;
+  var meses={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
+  var mFecha=allText.match(/del\s+(\d{2})\/(\w+)\/(\d{2,4})\s+al\s+(\d{2})\/(\w+)\/(\d{2,4})/i);
+  if(mFecha){
+    var mesNum=meses[mFecha[2].toLowerCase()]||parseInt(mFecha[2])||1;
+    var anioI=parseInt(mFecha[3]);if(anioI<100)anioI+=2000;
+    var anioF=parseInt(mFecha[6]);if(anioF<100)anioF+=2000;
+    periodoMes=mesNum;periodoAnio=anioI;
+    fechaInicio=anioI+'-'+(mesNum<10?'0':'')+mesNum+'-'+mFecha[1];
+    var mesF=meses[mFecha[5].toLowerCase()]||parseInt(mFecha[5])||mesNum;
+    fechaFin=anioF+'-'+(mesF<10?'0':'')+mesF+'-'+mFecha[4];
+  }
+
+  // Extraer líneas de detalle
+  var lineas=[];
+  // Match pattern: CODIGO  Descripcion  Cantidad  $Monto
+  var regex=/([A-Z]{2,6}\d{1,3})\s+([\w\s\.\,\(\)áéíóúñÁÉÍÓÚÑ\-\/]+?)\s+(\d+[\.\d]*)\s+\$?([\d,]+\.?\d*)/g;
+  var m;
+  while((m=regex.exec(allText))!==null){
+    var cod=m[1].trim();
+    var desc=m[2].trim();
+    var cant=parseFloat(m[3]);
+    var monto=parseFloat(m[4].replace(/,/g,''));
+    if(cod!=='TOTAL'&&!isNaN(monto)){
+      lineas.push({codigo:cod,descripcion:desc,cantidad:cant,monto:monto});
+    }
+  }
+
+  // Total
+  var totalMonto=0;var totalCant=0;
+  lineas.forEach(function(l){totalMonto+=l.monto;totalCant+=l.cantidad;});
+
+  return{cliente:cliente,periodoMes:periodoMes,periodoAnio:periodoAnio,fechaInicio:fechaInicio,fechaFin:fechaFin,lineas:lineas,totalCant:totalCant,totalMonto:totalMonto,archivo:file.name};
+}
+
+// Guardar factura parseada en Supabase
+async function guardarFactura(data){
+  // 1. Buscar cliente_id por razon_social (fuzzy match)
+  var resC=await sbFetch('/rest/v1/clientes_almacen?select=id,razon_social');
+  var clientes=await resC.json();
+  var clienteId=null;
+  var nombreLower=data.cliente.toLowerCase();
+  for(var i=0;i<clientes.length;i++){
+    if(clientes[i].razon_social&&clientes[i].razon_social.toLowerCase().indexOf(nombreLower.split(' ')[0].toLowerCase())>=0){
+      clienteId=clientes[i].id;break;
+    }
+    if(nombreLower.indexOf(clientes[i].razon_social.toLowerCase().split(' ')[0].toLowerCase())>=0){
+      clienteId=clientes[i].id;break;
+    }
+  }
+  if(!clienteId){
+    // Buscar por cualquier palabra en común
+    for(var i=0;i<clientes.length;i++){
+      var words=clientes[i].razon_social.toLowerCase().split(/\s+/);
+      for(var w=0;w<words.length;w++){
+        if(words[w].length>3&&nombreLower.indexOf(words[w])>=0){clienteId=clientes[i].id;break;}
+      }
+      if(clienteId)break;
+    }
+  }
+
+  return{clientes:clientes,clienteId:clienteId};
+}
+
+async function confirmarYGuardar(data,clienteId){
+  // 1. Auto-registrar servicios nuevos en catálogo
+  var resCat=await sbFetch('/rest/v1/catalogo_servicios?select=codigo');
+  var catExist=await resCat.json();
+  var existCodes={};catExist.forEach(function(c){existCodes[c.codigo]=true;});
+
+  for(var i=0;i<data.lineas.length;i++){
+    var l=data.lineas[i];
+    if(!existCodes[l.codigo]){
+      var cat=fnCategoria(l.codigo);
+      await sbFetch('/rest/v1/catalogo_servicios',{method:'POST',body:JSON.stringify({codigo:l.codigo,descripcion:l.descripcion,categoria:cat})});
+      existCodes[l.codigo]=true;
+    }
+  }
+
+  // 2. Verificar si ya existe encabezado para este cliente/periodo
+  var checkUrl='/rest/v1/facturacion_encabezado?cliente_id=eq.'+clienteId+'&periodo_anio=eq.'+data.periodoAnio+'&periodo_mes=eq.'+data.periodoMes;
+  var resCheck=await sbFetch(checkUrl);
+  var existing=await resCheck.json();
+  if(existing.length>0){
+    // Eliminar existente (cascade borra detalles)
+    await sbFetch('/rest/v1/facturacion_encabezado?id=eq.'+existing[0].id,{method:'DELETE'});
+  }
+
+  // 3. Insertar encabezado
+  var encBody={cliente_id:clienteId,periodo_anio:data.periodoAnio,periodo_mes:data.periodoMes,fecha_inicio:data.fechaInicio,fecha_fin:data.fechaFin,total_cantidad:data.totalCant,total_monto:data.totalMonto,numero_factura:'',archivo_nombre:data.archivo};
+  var resEnc=await sbFetch('/rest/v1/facturacion_encabezado',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(encBody)});
+  var enc=await resEnc.json();
+  if(!enc||!enc[0]||!enc[0].id){toast('Error al guardar encabezado','error');return false;}
+  var encId=enc[0].id;
+
+  // 4. Insertar detalles
+  var detalles=data.lineas.map(function(l){
+    return{encabezado_id:encId,codigo_servicio:l.codigo,descripcion_factura:l.descripcion,cantidad:l.cantidad,monto:l.monto};
+  });
+  var resDet=await sbFetch('/rest/v1/facturacion_detalle',{method:'POST',body:JSON.stringify(detalles)});
+  if(resDet.ok){toast('Factura guardada correctamente');return true;}
+  else{toast('Error al guardar detalles','error');return false;}
+}
+
+function fnCategoria(codigo){
+  if(/^CAF|^CAS/.test(codigo))return'cargos_pagos';
+  if(/^CDC/.test(codigo))return'carga_descarga';
+  if(/^F?FLE/.test(codigo))return'transporte';
+  if(/^GEN/.test(codigo))return'generales';
+  if(/^HES/.test(codigo))return'horas_extra';
+  if(/^INS/.test(codigo))return'inspeccion';
+  if(/^SAD/.test(codigo))return'administracion';
+  if(/^SAL/.test(codigo))return'almacenaje';
+  if(/^SBD/.test(codigo))return'servicios_bodega';
+  if(/^SEG/.test(codigo))return'seguros';
+  if(/^SEP/.test(codigo))return'puerto_cepa';
+  if(/^SIN/.test(codigo))return'inventario';
+  if(/^SME|^SMAA/.test(codigo))return'mensajeria_admin';
+  if(/^TAD/.test(codigo))return'aduana';
+  if(/^TIF/.test(codigo))return'inventario';
+  if(/^VEH/.test(codigo))return'vehiculos';
+  return'otros';
+}
+
+var CAT_LABELS={cargos_pagos:'Cargos/Pagos',carga_descarga:'Carga/Descarga',transporte:'Transporte',generales:'Generales',horas_extra:'Horas Extra',inspeccion:'Inspección',administracion:'Administración',almacenaje:'Almacenaje',servicios_bodega:'Serv. Bodega',seguros:'Seguros',puerto_cepa:'Puerto/CEPA',inventario:'Inventario',mensajeria_admin:'Mensajería/Admin',aduana:'Aduana',vehiculos:'Vehículos',otros:'Otros',sin_categoria:'Sin categoría'};
+
+var MESES_LABEL=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+async function renderFacturacion(){
+  var area=document.getElementById('mainArea');
+  area.innerHTML='<div class="loading">Cargando facturación...</div>';
+
+  // Cargar datos
+  var resR=await sbFetch('/rest/v1/v_facturacion_resumen?select=*&order=periodo_anio.desc,periodo_mes.desc');
+  var resumen=resR.ok?await resR.json():[];
+  var resS=await sbFetch('/rest/v1/v_facturacion_por_servicio?select=*');
+  var servicios=resS.ok?await resS.json():[];
+  var resC=await sbFetch('/rest/v1/clientes_almacen?select=id,razon_social&order=razon_social');
+  var clientes=resC.ok?await resC.json():[];
+
+  // KPIs
+  var totalFacturado=0;var totalRegistros=resumen.length;
+  var clientesSet={};
+  resumen.forEach(function(r){totalFacturado+=parseFloat(r.total_monto)||0;clientesSet[r.cliente_nombre||r.cliente]=true;});
+  var totalClientes=Object.keys(clientesSet).length;
+
+  // Agrupar por cliente para tabla
+  var porCliente={};
+  resumen.forEach(function(r){
+    var cn=r.cliente_nombre||r.cliente;
+    if(!porCliente[cn])porCliente[cn]={nombre:cn,total:0,registros:0,meses:{}};
+    porCliente[cn].total+=parseFloat(r.total_monto)||0;
+    porCliente[cn].registros++;
+    var key=r.periodo_anio+'-'+(r.periodo_mes<10?'0':'')+r.periodo_mes;
+    porCliente[cn].meses[key]=parseFloat(r.total_monto)||0;
+  });
+  var clientesList=Object.values(porCliente).sort(function(a,b){return b.total-a.total;});
+
+  // Meses únicos para columnas
+  var mesesUnicos={};
+  resumen.forEach(function(r){var k=r.periodo_anio+'-'+(r.periodo_mes<10?'0':'')+r.periodo_mes;mesesUnicos[k]=true;});
+  var mesesArr=Object.keys(mesesUnicos).sort();
+
+  var html='<div class="page-header"><div><div class="page-title">'+
+    '<svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>'+
+    ' Facturación por Cliente</div>'+
+    '<div class="page-sub">Análisis de facturación por cliente y línea de servicio</div></div>'+
+    '<div style="display:flex;gap:8px;">'+
+    '<button class="btn-primary" onclick="modalCargarPDF()">'+
+    '<svg class="ico ico-sm" viewBox="0 0 24 24" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+
+    'Cargar PDF</button>'+
+    '<button class="btn-ghost" onclick="modalCatalogoServicios()">Catálogo</button>'+
+    '</div></div>';
+
+  // KPIs
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;">'+
+    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Total Facturado</div>'+
+    '<div style="font-size:22px;font-weight:800;color:var(--green);">$'+fmt(totalFacturado)+'</div></div>'+
+    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Clientes</div>'+
+    '<div style="font-size:22px;font-weight:800;color:var(--steel);">'+totalClientes+'</div></div>'+
+    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Períodos Cargados</div>'+
+    '<div style="font-size:22px;font-weight:800;color:var(--brand);">'+totalRegistros+'</div></div>'+
+    '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Meses Registrados</div>'+
+    '<div style="font-size:22px;font-weight:800;color:var(--purple);">'+mesesArr.length+'</div></div>'+
+    '</div>';
+
+  // Tabs
+  html+='<div style="display:flex;gap:4px;margin-bottom:14px;">'+
+    '<button class="btn-primary" id="tabResumen" onclick="tabFact(\'resumen\')" style="font-size:11px;">Resumen por Cliente</button>'+
+    '<button class="btn-ghost" id="tabDetalle" onclick="tabFact(\'detalle\')" style="font-size:11px;">Detalle por Servicio</button>'+
+    '<button class="btn-ghost" id="tabTendencia" onclick="tabFact(\'tendencia\')" style="font-size:11px;">Tendencia</button>'+
+    '</div>';
+
+  html+='<div id="factContent"></div>';
+  area.innerHTML=html;
+
+  // Store data globally for tabs
+  window._factData={resumen:resumen,servicios:servicios,clientes:clientes,clientesList:clientesList,mesesArr:mesesArr,porCliente:porCliente};
+  tabFact('resumen');
+}
+
+function tabFact(tab){
+  ['tabResumen','tabDetalle','tabTendencia'].forEach(function(id){
+    var el=document.getElementById(id);if(el){el.className=id.replace('tab','tab')==='tab'+tab.charAt(0).toUpperCase()+tab.slice(1)?'btn-primary':'btn-ghost';}
+  });
+  document.getElementById('tabResumen').className=tab==='resumen'?'btn-primary':'btn-ghost';
+  document.getElementById('tabDetalle').className=tab==='detalle'?'btn-primary':'btn-ghost';
+  document.getElementById('tabTendencia').className=tab==='tendencia'?'btn-primary':'btn-ghost';
+
+  var d=window._factData;
+  if(tab==='resumen')renderTabResumen(d);
+  else if(tab==='detalle')renderTabDetalle(d);
+  else renderTabTendencia(d);
+}
+
+function renderTabResumen(d){
+  var el=document.getElementById('factContent');
+  if(d.clientesList.length===0){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);">No hay datos. Cargá un PDF para comenzar.</div>';return;}
+
+  var html='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+    '<thead><tr style="background:var(--bg-elev);">'+
+    '<th style="padding:10px 14px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);border-bottom:1px solid var(--border);">Cliente</th>';
+  d.mesesArr.forEach(function(m){
+    var parts=m.split('-');
+    html+='<th style="padding:10px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);border-bottom:1px solid var(--border);">'+MESES_LABEL[parseInt(parts[1])]+' '+parts[0].slice(2)+'</th>';
+  });
+  html+='<th style="padding:10px 14px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--brand);border-bottom:1px solid var(--border);">Total</th></tr></thead><tbody>';
+
+  d.clientesList.forEach(function(c,idx){
+    html+='<tr style="border-bottom:1px solid var(--border);'+(idx%2?'background:var(--bg-elev);':'')+'cursor:pointer;" onclick="verDetalleCliente(\''+esc(c.nombre)+'\')">'+
+      '<td style="padding:8px 14px;font-weight:600;">'+esc(c.nombre)+'</td>';
+    d.mesesArr.forEach(function(m){
+      var v=c.meses[m]||0;
+      html+='<td style="padding:8px;text-align:right;color:'+(v>0?'var(--text)':'var(--text3)')+';">'+( v>0?'$'+fmt(v):'—')+'</td>';
+    });
+    html+='<td style="padding:8px 14px;text-align:right;font-weight:700;color:var(--green);">$'+fmt(c.total)+'</td></tr>';
+  });
+
+  // Totals row
+  html+='<tr style="background:var(--bg-elev);font-weight:700;"><td style="padding:10px 14px;">TOTAL</td>';
+  var grandTotal=0;
+  d.mesesArr.forEach(function(m){
+    var colTotal=0;d.clientesList.forEach(function(c){colTotal+=(c.meses[m]||0);});
+    grandTotal+=colTotal;
+    html+='<td style="padding:10px 8px;text-align:right;color:var(--brand);">$'+fmt(colTotal)+'</td>';
+  });
+  html+='<td style="padding:10px 14px;text-align:right;color:var(--green);font-size:14px;">$'+fmt(grandTotal)+'</td></tr>';
+
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+function renderTabDetalle(d){
+  var el=document.getElementById('factContent');
+  if(d.servicios.length===0){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);">No hay datos de servicios.</div>';return;}
+
+  // Filtro por cliente
+  var clientesU={};d.servicios.forEach(function(s){clientesU[s.cliente_nombre||s.cliente]=true;});
+  var clist=Object.keys(clientesU).sort();
+
+  var html='<div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;">'+
+    '<label style="margin:0;font-size:11px;">Cliente:</label>'+
+    '<select id="filtCliente" onchange="filtrarDetalle()" style="width:auto;min-width:200px;padding:6px 10px;">'+
+    '<option value="">— Todos —</option>';
+  clist.forEach(function(c){html+='<option value="'+esc(c)+'">'+esc(c)+'</option>';});
+  html+='</select>'+
+    '<label style="margin:0 0 0 10px;font-size:11px;">Categoría:</label>'+
+    '<select id="filtCat" onchange="filtrarDetalle()" style="width:auto;min-width:160px;padding:6px 10px;">'+
+    '<option value="">— Todas —</option>';
+  var catsU={};d.servicios.forEach(function(s){catsU[s.categoria]=true;});
+  Object.keys(catsU).sort().forEach(function(c){html+='<option value="'+c+'">'+(CAT_LABELS[c]||c)+'</option>';});
+  html+='</select></div>';
+
+  html+='<div id="detalleTable"></div>';
+  el.innerHTML=html;
+  filtrarDetalle();
+}
+
+function filtrarDetalle(){
+  var d=window._factData;
+  var fc=document.getElementById('filtCliente').value;
+  var fcat=document.getElementById('filtCat').value;
+
+  var filtered=d.servicios.filter(function(s){
+    if(fc&&(s.cliente_nombre||s.cliente)!==fc)return false;
+    if(fcat&&s.categoria!==fcat)return false;
+    return true;
+  });
+
+  // Group by service code
+  var byService={};
+  filtered.forEach(function(s){
+    var key=s.codigo_servicio;
+    if(!byService[key])byService[key]={codigo:key,servicio:s.servicio,categoria:s.categoria,meses:{},total:0};
+    var mk=s.periodo_anio+'-'+(s.periodo_mes<10?'0':'')+s.periodo_mes;
+    if(!byService[key].meses[mk])byService[key].meses[mk]=0;
+    byService[key].meses[mk]+=parseFloat(s.monto)||0;
+    byService[key].total+=parseFloat(s.monto)||0;
+  });
+  var servList=Object.values(byService).sort(function(a,b){return b.total-a.total;});
+
+  var html='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+    '<thead><tr style="background:var(--bg-elev);">'+
+    '<th style="padding:10px 14px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Código</th>'+
+    '<th style="padding:10px 14px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Servicio</th>'+
+    '<th style="padding:10px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Categoría</th>';
+  d.mesesArr.forEach(function(m){
+    var parts=m.split('-');
+    html+='<th style="padding:10px 8px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">'+MESES_LABEL[parseInt(parts[1])]+' '+parts[0].slice(2)+'</th>';
+  });
+  html+='<th style="padding:10px 14px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--brand);border-bottom:1px solid var(--border);">Total</th>';
+  html+='<th style="padding:10px 8px;text-align:center;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Tend.</th>';
+  html+='</tr></thead><tbody>';
+
+  servList.forEach(function(s,idx){
+    var vals=d.mesesArr.map(function(m){return s.meses[m]||0;});
+    var trend='';
+    if(vals.length>=2){
+      var last=vals[vals.length-1];var prev=vals[vals.length-2];
+      if(prev>0&&last>prev)trend='<span style="color:var(--green);">▲</span>';
+      else if(prev>0&&last<prev)trend='<span style="color:var(--red);">▼</span>';
+      else if(prev>0&&last===prev)trend='<span style="color:var(--text3);">═</span>';
+      else trend='<span style="color:var(--text3);">—</span>';
+    }
+
+    html+='<tr style="border-bottom:1px solid var(--border);'+(idx%2?'background:var(--bg-elev);':'')+'">'+
+      '<td style="padding:8px 14px;font-weight:600;font-family:monospace;color:var(--steel);">'+esc(s.codigo)+'</td>'+
+      '<td style="padding:8px 14px;">'+esc(s.servicio)+'</td>'+
+      '<td style="padding:8px;"><span style="background:var(--brand-soft);color:var(--brand);padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;">'+(CAT_LABELS[s.categoria]||s.categoria)+'</span></td>';
+    d.mesesArr.forEach(function(m){
+      var v=s.meses[m]||0;
+      html+='<td style="padding:8px;text-align:right;color:'+(v>0?'var(--text)':'var(--text3)')+';">'+(v>0?'$'+fmt(v):'—')+'</td>';
+    });
+    html+='<td style="padding:8px 14px;text-align:right;font-weight:700;color:var(--green);">$'+fmt(s.total)+'</td>';
+    html+='<td style="padding:8px;text-align:center;font-size:14px;">'+trend+'</td></tr>';
+  });
+
+  html+='</tbody></table></div>';
+  document.getElementById('detalleTable').innerHTML=html;
+}
+
+function renderTabTendencia(d){
+  var el=document.getElementById('factContent');
+  if(d.servicios.length===0){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);">No hay datos para tendencias.</div>';return;}
+
+  // Group by category per month
+  var byCat={};
+  d.servicios.forEach(function(s){
+    var cat=s.categoria||'sin_categoria';
+    if(!byCat[cat])byCat[cat]={total:0,meses:{}};
+    var mk=s.periodo_anio+'-'+(s.periodo_mes<10?'0':'')+s.periodo_mes;
+    if(!byCat[cat].meses[mk])byCat[cat].meses[mk]=0;
+    byCat[cat].meses[mk]+=parseFloat(s.monto)||0;
+    byCat[cat].total+=parseFloat(s.monto)||0;
+  });
+
+  var catList=Object.keys(byCat).sort(function(a,b){return byCat[b].total-byCat[a].total;});
+  var maxVal=0;
+  catList.forEach(function(c){d.mesesArr.forEach(function(m){var v=byCat[c].meses[m]||0;if(v>maxVal)maxVal=v;});});
+
+  var colors=['#f97316','#3b82f6','#10b981','#a855f7','#ef4444','#f59e0b','#06b6d4','#ec4899','#84cc16','#6366f1','#14b8a6','#f43f5e'];
+
+  var html='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:20px;">';
+  html+='<div style="font-size:13px;font-weight:700;margin-bottom:16px;">Distribución por Categoría de Servicio</div>';
+
+  // Stacked horizontal bars per month
+  d.mesesArr.forEach(function(m){
+    var parts=m.split('-');
+    var label=MESES_LABEL[parseInt(parts[1])]+' '+parts[0];
+    var monthTotal=0;catList.forEach(function(c){monthTotal+=(byCat[c].meses[m]||0);});
+
+    html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">'+
+      '<div style="width:70px;font-size:11px;font-weight:600;color:var(--text2);text-align:right;">'+label+'</div>'+
+      '<div style="flex:1;display:flex;height:26px;border-radius:4px;overflow:hidden;background:var(--bg-elev);">';
+    catList.forEach(function(c,ci){
+      var v=byCat[c].meses[m]||0;
+      if(v>0&&monthTotal>0){
+        var pct=(v/monthTotal*100);
+        html+='<div style="width:'+pct+'%;background:'+colors[ci%colors.length]+';display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;min-width:2px;" title="'+(CAT_LABELS[c]||c)+': $'+fmt(v)+'">'+
+          (pct>8?'$'+fmtInt(v):'')+'</div>';
+      }
+    });
+    html+='</div><div style="width:80px;font-size:11px;font-weight:600;text-align:right;color:var(--text);">$'+fmt(monthTotal)+'</div></div>';
+  });
+
+  // Legend
+  html+='<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">';
+  catList.forEach(function(c,ci){
+    html+='<div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2);">'+
+      '<div style="width:10px;height:10px;border-radius:2px;background:'+colors[ci%colors.length]+';"></div>'+
+      (CAT_LABELS[c]||c)+' <span style="font-weight:700;color:var(--text);">$'+fmt(byCat[c].total)+'</span></div>';
+  });
+  html+='</div></div>';
+
+  // Top 10 services table
+  var allServ={};
+  d.servicios.forEach(function(s){
+    var k=s.codigo_servicio;
+    if(!allServ[k])allServ[k]={codigo:k,servicio:s.servicio,total:0};
+    allServ[k].total+=parseFloat(s.monto)||0;
+  });
+  var top10=Object.values(allServ).sort(function(a,b){return b.total-a.total;}).slice(0,10);
+
+  html+='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:20px;margin-top:14px;">';
+  html+='<div style="font-size:13px;font-weight:700;margin-bottom:12px;">Top 10 Servicios Facturados</div>';
+  var topMax=top10.length>0?top10[0].total:1;
+  top10.forEach(function(s,i){
+    var pct=s.total/topMax*100;
+    html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'+
+      '<div style="width:60px;font-family:monospace;font-size:11px;font-weight:600;color:var(--steel);">'+esc(s.codigo)+'</div>'+
+      '<div style="width:220px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(s.servicio)+'</div>'+
+      '<div style="flex:1;background:var(--bg-elev);border-radius:3px;height:18px;overflow:hidden;">'+
+      '<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--brand),var(--brand-dark));border-radius:3px;"></div></div>'+
+      '<div style="width:90px;text-align:right;font-size:11px;font-weight:700;color:var(--green);">$'+fmt(s.total)+'</div></div>';
+  });
+  html+='</div>';
+
+  el.innerHTML=html;
+}
+
+function verDetalleCliente(nombre){
+  document.getElementById('filtCliente').value=nombre;
+  tabFact('detalle');
+}
+
+// Modal: Cargar PDF
+function modalCargarPDF(){
+  var body='<div style="text-align:center;padding:10px;">'+
+    '<div style="border:2px dashed var(--border-strong);border-radius:10px;padding:30px 20px;cursor:pointer;transition:.2s;" id="dropZone" onclick="document.getElementById(\'pdfInput\').click();" ondragover="event.preventDefault();this.style.borderColor=\'var(--brand)\';" ondragleave="this.style.borderColor=\'var(--border-strong)\';" ondrop="event.preventDefault();this.style.borderColor=\'var(--border-strong)\';handlePdfDrop(event);">'+
+    '<svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--text3);fill:none;stroke-width:1.5;margin-bottom:10px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/></svg>'+
+    '<div style="font-size:13px;font-weight:600;margin-bottom:4px;">Arrastrá el PDF aquí o hacé click</div>'+
+    '<div style="font-size:11px;color:var(--text3);">Formato: Resumen de Facturación mensual</div>'+
+    '<input type="file" id="pdfInput" accept=".pdf" style="display:none;" onchange="handlePdfSelect(event)"/>'+
+    '</div>'+
+    '<div id="pdfPreview" style="margin-top:14px;"></div>'+
+    '</div>';
+  openModal('Cargar PDF de Facturación',body,'<button class="btn-ghost" onclick="closeModal()">Cancelar</button>');
+}
+
+function handlePdfDrop(e){var f=e.dataTransfer.files;if(f.length>0)procesarPdf(f[0]);}
+function handlePdfSelect(e){var f=e.target.files;if(f.length>0)procesarPdf(f[0]);}
+
+async function procesarPdf(file){
+  var prev=document.getElementById('pdfPreview');
+  prev.innerHTML='<div style="padding:16px;color:var(--text3);font-size:12px;">Procesando PDF...</div>';
+
+  try{
+    var data=await parsePdfFacturacion(file);
+    window._pdfParsed=data;
+
+    // Buscar cliente match
+    var match=await guardarFactura(data);
+
+    var html='<div style="text-align:left;background:var(--bg-elev);border-radius:8px;padding:14px;margin-top:10px;">'+
+      '<div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--brand);">Datos Extraídos</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:10px;">'+
+      '<div><span style="color:var(--text3);">Cliente:</span> <strong>'+esc(data.cliente)+'</strong></div>'+
+      '<div><span style="color:var(--text3);">Período:</span> <strong>'+MESES_LABEL[data.periodoMes]+' '+data.periodoAnio+'</strong></div>'+
+      '<div><span style="color:var(--text3);">Líneas:</span> <strong>'+data.lineas.length+'</strong></div>'+
+      '<div><span style="color:var(--text3);">Total:</span> <strong style="color:var(--green);">$'+fmt(data.totalMonto)+'</strong></div>'+
+      '</div>';
+
+    // Selector de cliente
+    html+='<div style="margin-bottom:10px;">'+
+      '<label>Asignar a Cliente</label>'+
+      '<select id="selCliente" style="padding:7px 10px;">';
+    match.clientes.forEach(function(c){
+      html+='<option value="'+c.id+'"'+(c.id===match.clienteId?' selected':'')+'>'+esc(c.razon_social)+'</option>';
+    });
+    html+='</select>';
+    if(match.clienteId){html+='<div style="font-size:10px;color:var(--green);margin-top:3px;">✓ Match encontrado automáticamente</div>';}
+    else{html+='<div style="font-size:10px;color:var(--yellow);margin-top:3px;">⚠ No se encontró match automático — seleccioná el cliente</div>';}
+    html+='</div>';
+
+    // Preview lines
+    html+='<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">'+
+      '<table style="width:100%;border-collapse:collapse;font-size:11px;">'+
+      '<thead><tr style="background:var(--bg-body);position:sticky;top:0;">'+
+      '<th style="padding:6px 10px;text-align:left;">Código</th>'+
+      '<th style="padding:6px 10px;text-align:left;">Descripción</th>'+
+      '<th style="padding:6px 10px;text-align:right;">Cant</th>'+
+      '<th style="padding:6px 10px;text-align:right;">Monto</th></tr></thead><tbody>';
+    data.lineas.forEach(function(l,i){
+      html+='<tr style="border-top:1px solid var(--border);'+(i%2?'background:var(--bg-body);':'')+'">'+
+        '<td style="padding:5px 10px;font-family:monospace;color:var(--steel);">'+esc(l.codigo)+'</td>'+
+        '<td style="padding:5px 10px;">'+esc(l.descripcion)+'</td>'+
+        '<td style="padding:5px 10px;text-align:right;">'+l.cantidad+'</td>'+
+        '<td style="padding:5px 10px;text-align:right;font-weight:600;">$'+fmt(l.monto)+'</td></tr>';
+    });
+    html+='</tbody></table></div></div>';
+
+    prev.innerHTML=html;
+    document.getElementById('modalFooter').innerHTML=
+      '<button class="btn-ghost" onclick="closeModal()">Cancelar</button>'+
+      '<button class="btn-primary" onclick="confirmarGuardarPdf()">Guardar Factura</button>';
+
+  }catch(err){
+    prev.innerHTML='<div style="padding:16px;color:var(--red);font-size:12px;">Error al procesar: '+esc(err.message)+'</div>';
+    console.error(err);
+  }
+}
+
+async function confirmarGuardarPdf(){
+  var data=window._pdfParsed;
+  var clienteId=parseInt(document.getElementById('selCliente').value);
+  if(!clienteId){toast('Seleccioná un cliente','error');return;}
+
+  document.getElementById('modalFooter').innerHTML='<div style="color:var(--text3);font-size:12px;">Guardando...</div>';
+
+  var ok=await confirmarYGuardar(data,clienteId);
+  if(ok){closeModal();renderFacturacion();}
+  else{document.getElementById('modalFooter').innerHTML='<button class="btn-ghost" onclick="closeModal()">Cerrar</button>';}
+}
+
+// Modal: Catálogo de Servicios
+async function modalCatalogoServicios(){
+  var res=await sbFetch('/rest/v1/catalogo_servicios?select=*&order=codigo');
+  var cat=res.ok?await res.json():[];
+
+  var body='<div style="max-height:400px;overflow-y:auto;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+    '<thead><tr style="background:var(--bg-elev);position:sticky;top:0;">'+
+    '<th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);">Código</th>'+
+    '<th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);">Descripción</th>'+
+    '<th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);">Categoría</th></tr></thead><tbody>';
+
+  if(cat.length===0){body+='<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text3);">Sin servicios registrados. Se auto-crean al cargar PDFs.</td></tr>';}
+  cat.forEach(function(c,i){
+    body+='<tr style="border-top:1px solid var(--border);'+(i%2?'background:var(--bg-elev);':'')+'">'+
+      '<td style="padding:6px 10px;font-family:monospace;font-weight:600;color:var(--steel);">'+esc(c.codigo)+'</td>'+
+      '<td style="padding:6px 10px;">'+esc(c.descripcion)+'</td>'+
+      '<td style="padding:6px 10px;"><span style="background:var(--brand-soft);color:var(--brand);padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;">'+(CAT_LABELS[c.categoria]||c.categoria||'—')+'</span></td></tr>';
+  });
+  body+='</tbody></table></div>';
+
+  openModal('Catálogo de Servicios ('+cat.length+')',body,'<button class="btn-ghost" onclick="closeModal()">Cerrar</button>');
 }
 
 window.addEventListener('load',function(){if(loadSession()){showApp();startRefreshInterval();navTo('dashboard');cargarAlertas();setInterval(cargarAlertas,5*60*1000);}else{document.getElementById('loginOverlay').style.display='flex';document.getElementById('app').style.display='none';}});
