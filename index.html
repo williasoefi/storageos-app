@@ -2083,12 +2083,11 @@ async function confirmarYGuardar(data,clienteId){
     }
   }
 
-  // 2. Verificar si ya existe encabezado para este cliente/periodo
-  var checkUrl='/rest/v1/facturacion_encabezado?cliente_id=eq.'+clienteId+'&periodo_anio=eq.'+data.periodoAnio+'&periodo_mes=eq.'+data.periodoMes;
+  // 2. Verificar duplicado exacto (mismo cliente + periodo + archivo)
+  var checkUrl='/rest/v1/facturacion_encabezado?cliente_id=eq.'+clienteId+'&periodo_anio=eq.'+data.periodoAnio+'&periodo_mes=eq.'+data.periodoMes+'&archivo_nombre=eq.'+encodeURIComponent(data.archivo);
   var resCheck=await sbFetch(checkUrl);
   var existing=await resCheck.json();
   if(existing.length>0){
-    // Eliminar existente (cascade borra detalles)
     await sbFetch('/rest/v1/facturacion_encabezado?id=eq.'+existing[0].id,{method:'DELETE'});
   }
 
