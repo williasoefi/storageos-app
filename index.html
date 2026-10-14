@@ -341,7 +341,7 @@ tr:hover td{background:rgba(30,49,96,.35);}
     </div>
 
     <div class="sb-footer">
-      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.6.0 · 14-Oct-2026</div>
+      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.6.1 · 14-Oct-2026</div>
       <div class="sb-user" onclick="logout()">
         <div class="avatar" id="uAvatar">W</div>
         <div style="flex:1;min-width:0;">
@@ -2567,12 +2567,12 @@ function actualizarAnalisis(){
   rpt+='<div style="padding:12px 20px;border-bottom:1px solid var(--border);">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'+
     '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:700;">Análisis Ejecutivo</div>'+
-    '<button class="btn-ghost" onclick="generarNarrativaAI()" style="font-size:10px;padding:4px 10px;" id="btnNarrativa">Generar con IA</button></div>'+
-    '<div id="narrativaAI" style="font-size:12px;line-height:1.6;color:var(--text2);">'+
-    '<span style="color:var(--text3);font-style:italic;">Hacé click en "Generar con IA" para obtener un análisis narrativo del comportamiento del mes.</span></div></div>';
+    '<button class="btn-ghost" onclick="generarNarrativaAI()" style="font-size:10px;padding:4px 10px;" id="btnNarrativa">Regenerar</button></div>'+
+    '<div id="narrativaAI" style="font-size:12px;line-height:1.6;color:var(--text2);"></div></div>';
 
-  // Guardar datos para narrativa
+  // Guardar datos para narrativa y auto-generar
   window._analisisData={labelActual:labelActual,labelAnterior:labelAnterior,totalActual:totalActual,totalAnterior:totalAnterior,totalDiff:totalDiff,totalPct:totalPct,crecieron:crecieron,bajaron:bajaron,nuevos:nuevos,dataClientes:dataClientes,filtro:d.filtroCliente||''};
+  setTimeout(function(){generarNarrativaAI();},100);
 
   // Gráfica comparativa por cliente
   var allClientes=crecieron.concat(nuevos).concat(sinCambio).concat(bajaron);
@@ -2840,64 +2840,99 @@ function chartDonutCategorias(servicios,mes){
   return svg;
 }
 
-async function generarNarrativaAI(){
+function generarNarrativaAI(){
   var el=document.getElementById('narrativaAI');
   var btn=document.getElementById('btnNarrativa');
   var ad=window._analisisData;
   if(!ad){el.innerHTML='<span style="color:var(--red);">Sin datos para analizar.</span>';return;}
 
-  btn.disabled=true;btn.textContent='Generando...';
-  el.innerHTML='<div style="display:flex;align-items:center;gap:8px;color:var(--text3);"><div class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin 1s linear infinite;"></div> Analizando datos de facturación...</div>';
+  var html='<div style="border-left:3px solid var(--brand);padding-left:14px;">';
 
-  // Preparar resumen de datos
-  var resumen='DATOS DE FACTURACIÓN — '+ad.labelActual+' vs '+ad.labelAnterior+':\n';
-  resumen+='Total actual: $'+fmtC(ad.totalActual)+', Total anterior: $'+fmtC(ad.totalAnterior)+', Variación: $'+fmtC(ad.totalDiff)+' ('+ad.totalPct.toFixed(1)+'%)\n\n';
+  // ═══ PÁRRAFO 1: Visión general ═══
+  var tendencia=ad.totalDiff>0?'crecimiento':'contracción';
+  var magnitud=Math.abs(ad.totalPct);
+  var calificacion=magnitud>20?'significativ'+(ad.totalDiff>0?'o':'a'):magnitud>10?'moderad'+(ad.totalDiff>0?'o':'a'):'lev'+(ad.totalDiff>0?'e':'e');
+  var totalClientes=ad.crecieron.length+ad.bajaron.length+ad.nuevos.length;
 
-  if(ad.filtro)resumen+='ANÁLISIS SOLO PARA: '+ad.filtro+'\n\n';
+  var p1='La facturación de '+(ad.filtro?ad.filtro:'la operación')+' en '+ad.labelActual+' alcanzó $'+fmt(ad.totalActual)+', ';
+  if(ad.totalDiff>0)p1+='registrando un '+calificacion+' crecimiento de $'+fmtC(Math.abs(ad.totalDiff))+' (+'+magnitud.toFixed(1)+'%) respecto a '+ad.labelAnterior+'. ';
+  else if(ad.totalDiff<0)p1+='reflejando una '+calificacion+' disminución de $'+fmtC(Math.abs(ad.totalDiff))+' (-'+magnitud.toFixed(1)+'%) respecto a '+ad.labelAnterior+'. ';
+  else p1+='manteniéndose estable respecto a '+ad.labelAnterior+'. ';
 
-  resumen+='CLIENTES QUE CRECIERON ('+ad.crecieron.length+'):\n';
-  ad.crecieron.forEach(function(c){
-    resumen+=c.nombre+': de $'+fmtC(c.anterior)+' a $'+fmtC(c.actual)+' (+$'+fmtC(c.diff)+', +'+Math.abs(c.pct).toFixed(1)+'%)\n';
-    var servArr=Object.keys(c.servicios).map(function(k){var s=c.servicios[k];return{cod:k,nom:s.nombre,ant:s.anterior,act:s.actual,diff:s.actual-s.anterior};}).filter(function(s){return s.diff!==0;}).sort(function(a,b){return b.diff-a.diff;});
-    servArr.slice(0,5).forEach(function(s){resumen+='  '+s.cod+' '+s.nom+': $'+fmtC(s.ant)+' → $'+fmtC(s.act)+' ('+(s.diff>0?'+':'')+fmtC(s.diff)+')\n';});
-  });
-
-  resumen+='\nCLIENTES QUE BAJARON ('+ad.bajaron.length+'):\n';
-  ad.bajaron.forEach(function(c){
-    resumen+=c.nombre+': de $'+fmtC(c.anterior)+' a $'+fmtC(c.actual)+' (-$'+fmtC(Math.abs(c.diff))+', '+c.pct.toFixed(1)+'%)\n';
-    var servArr=Object.keys(c.servicios).map(function(k){var s=c.servicios[k];return{cod:k,nom:s.nombre,ant:s.anterior,act:s.actual,diff:s.actual-s.anterior};}).filter(function(s){return s.diff!==0;}).sort(function(a,b){return a.diff-b.diff;});
-    servArr.slice(0,5).forEach(function(s){resumen+='  '+s.cod+' '+s.nom+': $'+fmtC(s.ant)+' → $'+fmtC(s.act)+' ('+fmtC(s.diff)+')\n';});
-  });
-
-  if(ad.nuevos.length>0){
-    resumen+='\nCLIENTES NUEVOS ('+ad.nuevos.length+'):\n';
-    ad.nuevos.forEach(function(c){resumen+=c.nombre+': $'+fmtC(c.actual)+'\n';});
+  if(totalClientes>0){
+    var partes=[];
+    if(ad.crecieron.length>0)partes.push(ad.crecieron.length+' cliente'+(ad.crecieron.length>1?'s':'')+' incrementaron su facturación');
+    if(ad.bajaron.length>0)partes.push(ad.bajaron.length+' registraron disminución');
+    if(ad.nuevos.length>0)partes.push(ad.nuevos.length+' son nuevo'+(ad.nuevos.length>1?'s':'')+' en el período');
+    p1+='De la cartera activa, '+partes.join(', ')+'.';
   }
+  html+='<p style="margin:0 0 10px 0;">'+p1+'</p>';
 
-  try{
-    var response=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-6',
-        max_tokens:1000,
-        messages:[{role:'user',content:'Eres un analista financiero de EFI Logistics, una empresa de logística y almacenaje en El Salvador. Genera un análisis ejecutivo BREVE (máximo 3 párrafos cortos) del comportamiento de facturación del mes. Sé directo, profesional y enfocado en insights accionables. Usa formato narrativo sin bullets. Identifica patrones, riesgos y oportunidades. Los valores son en USD sin IVA.\n\n'+resumen}]
-      })
+  // ═══ PÁRRAFO 2: Principales movimientos ═══
+  var p2='';
+  if(ad.crecieron.length>0){
+    var topUp=ad.crecieron[0];
+    p2+='El principal impulsor de crecimiento fue '+topUp.nombre+' con un aumento de $'+fmtC(topUp.diff)+' (+'+Math.abs(topUp.pct).toFixed(1)+'%)';
+    // Identificar servicio que más creció en ese cliente
+    var topServUp=null;var topServDiff=0;
+    Object.keys(topUp.servicios).forEach(function(k){
+      var s=topUp.servicios[k];var d=s.actual-s.anterior;
+      if(d>topServDiff){topServDiff=d;topServUp=s;}
     });
-    var data=await response.json();
-    var texto=data.content.map(function(c){return c.text||'';}).join('');
-
-    // Format paragraphs
-    var parrafos=texto.split('\n\n').filter(function(p){return p.trim().length>0;});
-    var formatted=parrafos.map(function(p){return '<p style="margin:0 0 8px 0;">'+esc(p.trim())+'</p>';}).join('');
-
-    el.innerHTML='<div style="border-left:3px solid var(--brand);padding-left:14px;">'+formatted+'</div>'+
-      '<div style="text-align:right;margin-top:6px;font-size:9px;color:var(--text3);">Generado por Claude · '+new Date().toLocaleTimeString('es-SV')+'</div>';
-  }catch(err){
-    console.error('Error AI:',err);
-    el.innerHTML='<span style="color:var(--red);font-size:11px;">Error al generar análisis: '+esc(err.message)+'</span>';
+    if(topServUp)p2+=', impulsado principalmente por '+topServUp.nombre+' (+$'+fmtC(topServDiff)+')';
+    p2+='. ';
   }
-  btn.disabled=false;btn.textContent='Regenerar';
+  if(ad.bajaron.length>0){
+    var topDown=ad.bajaron[0];
+    p2+=(p2?'Por otro lado, ':'')+'la mayor contracción provino de '+topDown.nombre+' con una reducción de $'+fmtC(Math.abs(topDown.diff))+' ('+topDown.pct.toFixed(1)+'%)';
+    var topServDown=null;var topServDiffD=0;
+    Object.keys(topDown.servicios).forEach(function(k){
+      var s=topDown.servicios[k];var d=s.actual-s.anterior;
+      if(d<topServDiffD){topServDiffD=d;topServDown=s;}
+    });
+    if(topServDown)p2+=', donde '+topServDown.nombre+' fue el rubro con mayor caída (-$'+fmtC(Math.abs(topServDiffD))+')';
+    p2+='. ';
+  }
+  if(ad.nuevos.length>0){
+    p2+='Se incorpor'+(ad.nuevos.length>1?'aron':'ó')+' '+ad.nuevos.length+' cliente'+(ad.nuevos.length>1?'s':'')+ ' nuevo'+(ad.nuevos.length>1?'s':'')+' aportando $'+fmtC(ad.nuevos.reduce(function(a,c){return a+c.actual;},0))+' al total del período. ';
+  }
+  if(p2)html+='<p style="margin:0 0 10px 0;">'+p2+'</p>';
+
+  // ═══ PÁRRAFO 3: Insights y recomendaciones ═══
+  var p3='';
+  // Concentración de ingresos
+  if(ad.crecieron.length>0||ad.bajaron.length>0){
+    var allC=ad.crecieron.concat(ad.bajaron).concat(ad.nuevos);
+    allC.sort(function(a,b){return b.actual-a.actual;});
+    if(allC.length>=2){
+      var topPct=ad.totalActual>0?((allC[0].actual/ad.totalActual)*100):0;
+      if(topPct>40)p3+='Es importante notar que '+allC[0].nombre+' representa el '+topPct.toFixed(0)+'% de la facturación total, lo que indica una concentración de ingresos que conviene monitorear. ';
+    }
+  }
+
+  // Alertas de servicios
+  var servGlobal={};
+  Object.keys(ad.dataClientes).forEach(function(cn){
+    var c=ad.dataClientes[cn];
+    Object.keys(c.servicios).forEach(function(k){
+      if(!servGlobal[k])servGlobal[k]={nombre:c.servicios[k].nombre,actual:0,anterior:0};
+      servGlobal[k].actual+=c.servicios[k].actual;servGlobal[k].anterior+=c.servicios[k].anterior;
+    });
+  });
+  var servBaja=Object.values(servGlobal).filter(function(s){return s.anterior>0&&s.actual<s.anterior;}).sort(function(a,b){return(a.actual-a.anterior)-(b.actual-b.anterior);});
+  var servAlza=Object.values(servGlobal).filter(function(s){return s.actual>s.anterior;}).sort(function(a,b){return(b.actual-b.anterior)-(a.actual-a.anterior);});
+
+  if(servAlza.length>0)p3+='A nivel de servicios, '+servAlza[0].nombre+' lidera el crecimiento global. ';
+  if(servBaja.length>0)p3+='Se recomienda evaluar la caída en '+servBaja[0].nombre+' para identificar si responde a factores estacionales o pérdida de demanda.';
+
+  if(!p3)p3='Se recomienda mantener el monitoreo mensual para identificar tendencias a mediano plazo y anticipar cambios en la demanda de servicios.';
+
+  html+='<p style="margin:0;">'+p3+'</p>';
+  html+='</div>';
+  html+='<div style="text-align:right;margin-top:6px;font-size:9px;color:var(--text3);">Generado automáticamente · '+new Date().toLocaleTimeString('es-SV')+'</div>';
+
+  el.innerHTML=html;
+  btn.textContent='Regenerar';
 }
 
 function verDetalleCliente(nombre){
@@ -3057,18 +3092,12 @@ async function modalCatalogoServicios(){
 
 // Modal: Eliminar facturas de un cliente
 async function modalEliminarFacturas(clienteNombre){
-  // Buscar encabezados de este cliente
-  var res=await sbFetch('/rest/v1/v_facturacion_resumen?select=*&cliente=eq.'+encodeURIComponent(clienteNombre)+'&order=periodo_anio.desc,periodo_mes.desc');
-  var registros=res.ok?await res.json():[];
-  // Fallback: filter from all
-  if(registros.length===0){
-    var resAll=await sbFetch('/rest/v1/facturacion_encabezado?select=*,clientes_almacen(razon_social)&order=periodo_anio.desc,periodo_mes.desc');
-    var all=resAll.ok?await resAll.json():[];
-    registros=all.filter(function(r){
-      var cn=r.clientes_almacen?r.clientes_almacen.razon_social:'';
-      return cn===clienteNombre;
-    });
-  }
+  var resAll=await sbFetch('/rest/v1/facturacion_encabezado?select=*,clientes_almacen(razon_social)&order=periodo_anio.desc,periodo_mes.desc');
+  var all=resAll.ok?await resAll.json():[];
+  var registros=all.filter(function(r){
+    var cn=r.clientes_almacen?r.clientes_almacen.razon_social:'';
+    return cn===clienteNombre;
+  });
 
   var body='<div style="font-size:12px;margin-bottom:10px;color:var(--text2);">Registros de facturación de <strong>'+esc(clienteNombre)+'</strong></div>'+
     '<div style="max-height:350px;overflow-y:auto;">'+
