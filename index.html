@@ -160,6 +160,7 @@ tr:hover td{background:rgba(30,49,96,.35);}
 .form-field{margin-bottom:12px;}
 
 .empty{padding:44px;text-align:center;color:var(--text3);font-size:12px;}
+@keyframes spin{to{transform:rotate(360deg)}}
 .loading{padding:44px;text-align:center;color:var(--text3);font-size:12px;}
 .toast{position:fixed;bottom:24px;right:24px;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:8px;padding:12px 16px;font-size:12px;z-index:9999;display:none;max-width:340px;box-shadow:0 10px 40px rgba(0,0,0,.4);}
 .toast.show{display:block;animation:slideUp .3s ease;}
@@ -340,7 +341,7 @@ tr:hover td{background:rgba(30,49,96,.35);}
     </div>
 
     <div class="sb-footer">
-      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.4.0 · 14-Oct-2026</div>
+      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.6.0 · 14-Oct-2026</div>
       <div class="sb-user" onclick="logout()">
         <div class="avatar" id="uAvatar">W</div>
         <div style="flex:1;min-width:0;">
@@ -2282,7 +2283,8 @@ function renderTabResumen(d){
     var parts=m.split('-');
     html+='<th style="padding:6px 4px;text-align:right;font-size:9px;text-transform:uppercase;letter-spacing:.02em;color:var(--text3);border-bottom:1px solid var(--border);white-space:nowrap;">'+MESES_LABEL[parseInt(parts[1])]+' '+parts[0].slice(2)+'</th>';
   });
-  html+='<th style="padding:6px 8px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--brand);border-bottom:1px solid var(--border);">Total</th></tr></thead><tbody>';
+  html+='<th style="padding:6px 8px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--brand);border-bottom:1px solid var(--border);">Total</th>'+
+    '<th style="padding:6px 4px;text-align:center;font-size:9px;color:var(--text3);border-bottom:1px solid var(--border);width:30px;"></th></tr></thead><tbody>';
 
   d.clientesList.forEach(function(c,idx){
     html+='<tr style="border-bottom:1px solid var(--border);'+(idx%2?'background:var(--bg-elev);':'')+'cursor:pointer;" onclick="verDetalleCliente(\''+esc(c.nombre)+'\')">'+
@@ -2291,7 +2293,8 @@ function renderTabResumen(d){
       var v=c.meses[m]||0;
       html+='<td style="padding:5px 4px;text-align:right;color:'+(v>0?'var(--text)':'var(--text3)')+';">'+(v>0?'$'+fmtC(v):'—')+'</td>';
     });
-    html+='<td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--green);">$'+fmtC(c.total)+'</td></tr>';
+    html+='<td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--green);">$'+fmtC(c.total)+'</td>'+
+      '<td style="padding:5px 4px;text-align:center;" onclick="event.stopPropagation();modalEliminarFacturas(\''+esc(c.nombre)+'\')"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:var(--text3);fill:none;stroke-width:2;cursor:pointer;opacity:.5;"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></td></tr>';
   });
 
   html+='<tr style="background:var(--bg-elev);font-weight:700;"><td style="padding:6px 8px;">TOTAL</td>';
@@ -2301,7 +2304,7 @@ function renderTabResumen(d){
     grandTotal+=colTotal;
     html+='<td style="padding:6px 4px;text-align:right;color:var(--brand);">$'+fmtC(colTotal)+'</td>';
   });
-  html+='<td style="padding:6px 8px;text-align:right;color:var(--green);font-size:12px;">$'+fmtC(grandTotal)+'</td></tr>';
+  html+='<td style="padding:6px 8px;text-align:right;color:var(--green);font-size:12px;">$'+fmtC(grandTotal)+'</td><td></td></tr>';
 
   html+='</tbody></table></div>';
   el.innerHTML=html;
@@ -2539,18 +2542,17 @@ function actualizarAnalisis(){
 
   // Header del informe
   rpt+='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;">';
-  rpt+='<div style="background:linear-gradient(135deg,#1e3a5f,#2d5a87);padding:24px 28px;color:#fff;">'+
-    '<div style="font-size:9px;text-transform:uppercase;letter-spacing:.12em;opacity:.7;margin-bottom:4px;">EFI Logistics — StorageOS</div>'+
-    '<div style="font-size:20px;font-weight:800;">Análisis de Facturación Mensual</div>'+
-    '<div style="font-size:12px;opacity:.8;margin-top:4px;">'+labelActual+' vs '+labelAnterior+(d.filtroCliente?' · '+esc(d.filtroCliente):'')+'</div>'+
+  rpt+='<div style="background:linear-gradient(135deg,#1e3a5f,#2d5a87);padding:14px 20px;color:#fff;display:flex;justify-content:space-between;align-items:center;">'+
+    '<div><div style="font-size:15px;font-weight:800;">Análisis de Facturación Mensual</div>'+
+    '<div style="font-size:10px;opacity:.7;margin-top:2px;">'+labelActual+' vs '+labelAnterior+(d.filtroCliente?' · '+esc(d.filtroCliente):'')+'</div></div>'+
+    '<div style="font-size:8px;text-transform:uppercase;letter-spacing:.1em;opacity:.5;">EFI Logistics</div>'+
     '</div>';
 
   // Resumen ejecutivo
   var diffColor=totalDiff>=0?'#10b981':'#ef4444';
   var diffIcon=totalDiff>=0?'▲':'▼';
-  rpt+='<div style="padding:20px 28px;border-bottom:1px solid var(--border);">'+
-    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:700;margin-bottom:12px;">Resumen Ejecutivo</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;">';
+  rpt+='<div style="padding:12px 20px;border-bottom:1px solid var(--border);">'+
+    '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;">';
 
   rpt+=analKpi('Mes Actual',labelActual,'$'+fmtC(totalActual),'var(--brand)')+
     analKpi('Mes Anterior',labelAnterior,'$'+fmtC(totalAnterior),'var(--steel)')+
@@ -2561,10 +2563,21 @@ function actualizarAnalisis(){
 
   rpt+='</div></div>';
 
+  // Narrativa AI
+  rpt+='<div style="padding:12px 20px;border-bottom:1px solid var(--border);">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'+
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:700;">Análisis Ejecutivo</div>'+
+    '<button class="btn-ghost" onclick="generarNarrativaAI()" style="font-size:10px;padding:4px 10px;" id="btnNarrativa">Generar con IA</button></div>'+
+    '<div id="narrativaAI" style="font-size:12px;line-height:1.6;color:var(--text2);">'+
+    '<span style="color:var(--text3);font-style:italic;">Hacé click en "Generar con IA" para obtener un análisis narrativo del comportamiento del mes.</span></div></div>';
+
+  // Guardar datos para narrativa
+  window._analisisData={labelActual:labelActual,labelAnterior:labelAnterior,totalActual:totalActual,totalAnterior:totalAnterior,totalDiff:totalDiff,totalPct:totalPct,crecieron:crecieron,bajaron:bajaron,nuevos:nuevos,dataClientes:dataClientes,filtro:d.filtroCliente||''};
+
   // Gráfica comparativa por cliente
   var allClientes=crecieron.concat(nuevos).concat(sinCambio).concat(bajaron);
   if(allClientes.length>0){
-    rpt+='<div style="padding:20px 28px;border-bottom:1px solid var(--border);">'+
+    rpt+='<div style="padding:12px 20px;border-bottom:1px solid var(--border);">'+
       '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:700;margin-bottom:14px;">Comparativo por Cliente</div>';
     rpt+=chartBarComparativo(allClientes,labelAnterior,labelActual);
     rpt+='</div>';
@@ -2572,7 +2585,7 @@ function actualizarAnalisis(){
 
   // Sección: Clientes que CRECIERON
   if(crecieron.length>0){
-    rpt+='<div style="padding:20px 28px;border-bottom:1px solid var(--border);">'+
+    rpt+='<div style="padding:12px 20px;border-bottom:1px solid var(--border);">'+
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'+
       '<div style="width:8px;height:8px;border-radius:50%;background:#10b981;"></div>'+
       '<div style="font-size:13px;font-weight:700;color:#10b981;">Clientes con Crecimiento ('+crecieron.length+')</div></div>';
@@ -2582,7 +2595,7 @@ function actualizarAnalisis(){
 
   // Sección: Clientes NUEVOS
   if(nuevos.length>0){
-    rpt+='<div style="padding:20px 28px;border-bottom:1px solid var(--border);">'+
+    rpt+='<div style="padding:12px 20px;border-bottom:1px solid var(--border);">'+
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'+
       '<div style="width:8px;height:8px;border-radius:50%;background:#3b82f6;"></div>'+
       '<div style="font-size:13px;font-weight:700;color:#3b82f6;">Clientes Nuevos en '+labelActual+' ('+nuevos.length+')</div></div>';
@@ -2592,7 +2605,7 @@ function actualizarAnalisis(){
 
   // Sección: Clientes que BAJARON
   if(bajaron.length>0){
-    rpt+='<div style="padding:20px 28px;border-bottom:1px solid var(--border);">'+
+    rpt+='<div style="padding:12px 20px;border-bottom:1px solid var(--border);">'+
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'+
       '<div style="width:8px;height:8px;border-radius:50%;background:#ef4444;"></div>'+
       '<div style="font-size:13px;font-weight:700;color:#ef4444;">Clientes con Disminución ('+bajaron.length+')</div></div>';
@@ -2601,7 +2614,7 @@ function actualizarAnalisis(){
   }
 
   // Top servicios variación
-  rpt+='<div style="padding:20px 28px;border-bottom:1px solid var(--border);">'+
+  rpt+='<div style="padding:12px 20px;border-bottom:1px solid var(--border);">'+
     '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:700;margin-bottom:14px;">Top Servicios — Mayor Variación</div>';
   rpt+=renderTopServiciosAnalisis(dataClientes,labelAnterior,labelActual);
   rpt+='</div>';
@@ -2622,9 +2635,9 @@ function actualizarAnalisis(){
 }
 
 function analKpi(label,sub,value,color){
-  return '<div style="background:var(--bg-elev);border-radius:8px;padding:12px 14px;">'+
-    '<div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);">'+label+(sub?' · '+sub:'')+'</div>'+
-    '<div style="font-size:20px;font-weight:800;color:'+color+';margin-top:4px;">'+value+'</div></div>';
+  return '<div style="background:var(--bg-elev);border-radius:6px;padding:8px 10px;">'+
+    '<div style="font-size:8px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);">'+label+(sub?' · '+sub:'')+'</div>'+
+    '<div style="font-size:16px;font-weight:800;color:'+color+';margin-top:2px;">'+value+'</div></div>';
 }
 
 function renderClienteAnalisis(c,labelAnt,labelAct,accentColor){
@@ -2637,13 +2650,13 @@ function renderClienteAnalisis(c,labelAnt,labelAct,accentColor){
   var pct=c.anterior>0?Math.abs(c.pct).toFixed(1)+'%':(c.actual>0?'Nuevo':'—');
   var arrow=c.diff>=0?'▲':'▼';
 
-  var h='<div style="background:var(--bg-elev);border-radius:8px;padding:14px 16px;margin-bottom:10px;border-left:3px solid '+accentColor+';">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'+
-    '<div style="font-size:13px;font-weight:700;">'+esc(c.nombre)+'</div>'+
-    '<div style="display:flex;gap:14px;font-size:12px;">'+
-    '<span style="color:var(--text3);">'+labelAnt+': <strong>$'+fmtC(c.anterior)+'</strong></span>'+
-    '<span style="color:var(--text);">'+labelAct+': <strong>$'+fmtC(c.actual)+'</strong></span>'+
-    '<span style="color:'+accentColor+';font-weight:700;">'+arrow+' $'+fmtC(Math.abs(c.diff))+' ('+pct+')</span>'+
+  var h='<div style="background:var(--bg-elev);border-radius:6px;padding:10px 12px;margin-bottom:6px;border-left:3px solid '+accentColor+';">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'+
+    '<div style="font-size:12px;font-weight:700;">'+esc(c.nombre)+'</div>'+
+    '<div style="display:flex;gap:10px;font-size:11px;">'+
+    '<span style="color:var(--text3);">'+labelAnt+': <b>$'+fmtC(c.anterior)+'</b></span>'+
+    '<span>'+labelAct+': <b>$'+fmtC(c.actual)+'</b></span>'+
+    '<span style="color:'+accentColor+';font-weight:700;">'+arrow+'$'+fmtC(Math.abs(c.diff))+' ('+pct+')</span>'+
     '</div></div>';
 
   // Mini bar chart por servicio
@@ -2827,6 +2840,66 @@ function chartDonutCategorias(servicios,mes){
   return svg;
 }
 
+async function generarNarrativaAI(){
+  var el=document.getElementById('narrativaAI');
+  var btn=document.getElementById('btnNarrativa');
+  var ad=window._analisisData;
+  if(!ad){el.innerHTML='<span style="color:var(--red);">Sin datos para analizar.</span>';return;}
+
+  btn.disabled=true;btn.textContent='Generando...';
+  el.innerHTML='<div style="display:flex;align-items:center;gap:8px;color:var(--text3);"><div class="spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin 1s linear infinite;"></div> Analizando datos de facturación...</div>';
+
+  // Preparar resumen de datos
+  var resumen='DATOS DE FACTURACIÓN — '+ad.labelActual+' vs '+ad.labelAnterior+':\n';
+  resumen+='Total actual: $'+fmtC(ad.totalActual)+', Total anterior: $'+fmtC(ad.totalAnterior)+', Variación: $'+fmtC(ad.totalDiff)+' ('+ad.totalPct.toFixed(1)+'%)\n\n';
+
+  if(ad.filtro)resumen+='ANÁLISIS SOLO PARA: '+ad.filtro+'\n\n';
+
+  resumen+='CLIENTES QUE CRECIERON ('+ad.crecieron.length+'):\n';
+  ad.crecieron.forEach(function(c){
+    resumen+=c.nombre+': de $'+fmtC(c.anterior)+' a $'+fmtC(c.actual)+' (+$'+fmtC(c.diff)+', +'+Math.abs(c.pct).toFixed(1)+'%)\n';
+    var servArr=Object.keys(c.servicios).map(function(k){var s=c.servicios[k];return{cod:k,nom:s.nombre,ant:s.anterior,act:s.actual,diff:s.actual-s.anterior};}).filter(function(s){return s.diff!==0;}).sort(function(a,b){return b.diff-a.diff;});
+    servArr.slice(0,5).forEach(function(s){resumen+='  '+s.cod+' '+s.nom+': $'+fmtC(s.ant)+' → $'+fmtC(s.act)+' ('+(s.diff>0?'+':'')+fmtC(s.diff)+')\n';});
+  });
+
+  resumen+='\nCLIENTES QUE BAJARON ('+ad.bajaron.length+'):\n';
+  ad.bajaron.forEach(function(c){
+    resumen+=c.nombre+': de $'+fmtC(c.anterior)+' a $'+fmtC(c.actual)+' (-$'+fmtC(Math.abs(c.diff))+', '+c.pct.toFixed(1)+'%)\n';
+    var servArr=Object.keys(c.servicios).map(function(k){var s=c.servicios[k];return{cod:k,nom:s.nombre,ant:s.anterior,act:s.actual,diff:s.actual-s.anterior};}).filter(function(s){return s.diff!==0;}).sort(function(a,b){return a.diff-b.diff;});
+    servArr.slice(0,5).forEach(function(s){resumen+='  '+s.cod+' '+s.nom+': $'+fmtC(s.ant)+' → $'+fmtC(s.act)+' ('+fmtC(s.diff)+')\n';});
+  });
+
+  if(ad.nuevos.length>0){
+    resumen+='\nCLIENTES NUEVOS ('+ad.nuevos.length+'):\n';
+    ad.nuevos.forEach(function(c){resumen+=c.nombre+': $'+fmtC(c.actual)+'\n';});
+  }
+
+  try{
+    var response=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:1000,
+        messages:[{role:'user',content:'Eres un analista financiero de EFI Logistics, una empresa de logística y almacenaje en El Salvador. Genera un análisis ejecutivo BREVE (máximo 3 párrafos cortos) del comportamiento de facturación del mes. Sé directo, profesional y enfocado en insights accionables. Usa formato narrativo sin bullets. Identifica patrones, riesgos y oportunidades. Los valores son en USD sin IVA.\n\n'+resumen}]
+      })
+    });
+    var data=await response.json();
+    var texto=data.content.map(function(c){return c.text||'';}).join('');
+
+    // Format paragraphs
+    var parrafos=texto.split('\n\n').filter(function(p){return p.trim().length>0;});
+    var formatted=parrafos.map(function(p){return '<p style="margin:0 0 8px 0;">'+esc(p.trim())+'</p>';}).join('');
+
+    el.innerHTML='<div style="border-left:3px solid var(--brand);padding-left:14px;">'+formatted+'</div>'+
+      '<div style="text-align:right;margin-top:6px;font-size:9px;color:var(--text3);">Generado por Claude · '+new Date().toLocaleTimeString('es-SV')+'</div>';
+  }catch(err){
+    console.error('Error AI:',err);
+    el.innerHTML='<span style="color:var(--red);font-size:11px;">Error al generar análisis: '+esc(err.message)+'</span>';
+  }
+  btn.disabled=false;btn.textContent='Regenerar';
+}
+
 function verDetalleCliente(nombre){
   var gf=document.getElementById('filtGlobalCliente');
   if(gf){gf.value=nombre;}
@@ -2914,7 +2987,22 @@ async function procesarPdf(file){
     });
     html+='</tbody></table></div></div>';
 
-    prev.innerHTML=html;
+    // Verificar duplicados
+    var dupWarning='';
+    if(match.clienteId){
+      var dupCheck=await sbFetch('/rest/v1/facturacion_encabezado?cliente_id=eq.'+match.clienteId+'&periodo_anio=eq.'+data.periodoAnio+'&periodo_mes=eq.'+data.periodoMes+'&select=id,archivo_nombre');
+      var dups=dupCheck.ok?await dupCheck.json():[];
+      if(dups.length>0){
+        var archivos=dups.map(function(d){return d.archivo_nombre||'sin nombre';}).join(', ');
+        dupWarning='<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:11px;">'+
+          '<strong style="color:var(--red);">⚠ Período ya cargado</strong><br>'+
+          'Ya existe(n) '+dups.length+' registro(s) para este cliente en '+MESES_LABEL[data.periodoMes]+' '+data.periodoAnio+':<br>'+
+          '<span style="color:var(--text3);">'+esc(archivos)+'</span><br>'+
+          '<span style="color:var(--text2);">Si guardás, se agregará como registro adicional. Si es duplicado, cancelá.</span></div>';
+      }
+    }
+
+    prev.innerHTML=dupWarning+html;
     document.getElementById('modalFooter').innerHTML=
       '<button class="btn-ghost" onclick="closeModal()">Cancelar</button>'+
       '<button class="btn-primary" onclick="confirmarGuardarPdf()">Guardar Factura</button>';
@@ -2965,6 +3053,59 @@ async function modalCatalogoServicios(){
   body+='</tbody></table></div>';
 
   openModal('Catálogo de Servicios ('+cat.length+')',body,'<button class="btn-ghost" onclick="closeModal()">Cerrar</button>');
+}
+
+// Modal: Eliminar facturas de un cliente
+async function modalEliminarFacturas(clienteNombre){
+  // Buscar encabezados de este cliente
+  var res=await sbFetch('/rest/v1/v_facturacion_resumen?select=*&cliente=eq.'+encodeURIComponent(clienteNombre)+'&order=periodo_anio.desc,periodo_mes.desc');
+  var registros=res.ok?await res.json():[];
+  // Fallback: filter from all
+  if(registros.length===0){
+    var resAll=await sbFetch('/rest/v1/facturacion_encabezado?select=*,clientes_almacen(razon_social)&order=periodo_anio.desc,periodo_mes.desc');
+    var all=resAll.ok?await resAll.json():[];
+    registros=all.filter(function(r){
+      var cn=r.clientes_almacen?r.clientes_almacen.razon_social:'';
+      return cn===clienteNombre;
+    });
+  }
+
+  var body='<div style="font-size:12px;margin-bottom:10px;color:var(--text2);">Registros de facturación de <strong>'+esc(clienteNombre)+'</strong></div>'+
+    '<div style="max-height:350px;overflow-y:auto;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+    '<thead><tr style="background:var(--bg-elev);">'+
+    '<th style="padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);">Período</th>'+
+    '<th style="padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);">Archivo</th>'+
+    '<th style="padding:6px 10px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--text3);">Monto</th>'+
+    '<th style="padding:6px 10px;text-align:center;font-size:10px;color:var(--text3);width:60px;">Acción</th></tr></thead><tbody>';
+
+  if(registros.length===0){
+    body+='<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text3);">Sin registros encontrados</td></tr>';
+  }
+  registros.forEach(function(r,i){
+    var periodo=MESES_LABEL[r.periodo_mes]+' '+r.periodo_anio;
+    body+='<tr style="border-top:1px solid var(--border);'+(i%2?'background:var(--bg-elev);':'')+'">'+
+      '<td style="padding:6px 10px;font-weight:600;">'+periodo+'</td>'+
+      '<td style="padding:6px 10px;font-size:11px;color:var(--text2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(r.archivo_nombre||'')+'">'+esc(r.archivo_nombre||'—')+'</td>'+
+      '<td style="padding:6px 10px;text-align:right;font-weight:600;color:var(--green);">$'+fmtC(r.total_monto)+'</td>'+
+      '<td style="padding:6px 10px;text-align:center;">'+
+      '<button onclick="eliminarFactura(\''+r.id+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">Eliminar</button></td></tr>';
+  });
+  body+='</tbody></table></div>';
+
+  openModal('Gestión de Facturas — '+esc(clienteNombre),body,'<button class="btn-ghost" onclick="closeModal()">Cerrar</button>');
+}
+
+async function eliminarFactura(encId){
+  if(!confirm('¿Eliminar este registro de facturación? Se borrarán el encabezado y todas sus líneas de detalle.'))return;
+  var res=await sbFetch('/rest/v1/facturacion_encabezado?id=eq.'+encId,{method:'DELETE'});
+  if(res.ok){
+    toast('Registro eliminado');
+    closeModal();
+    renderFacturacion();
+  }else{
+    toast('Error al eliminar','error');
+  }
 }
 
 // Modal: Alias de Clientes
