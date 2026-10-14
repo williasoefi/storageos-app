@@ -2041,31 +2041,45 @@ async function parsePdfFacturacion(file){
 
 // Guardar factura parseada en Supabase
 async function guardarFactura(data){
-  // 1. Buscar cliente_id por razon_social (fuzzy match)
+  // 1. Buscar en alias primero (match exacto por nombre_pdf)
+  var resA=await sbFetch('/rest/v1/clientes_alias?select=cliente_id,nombre_pdf');
+  var aliases=resA.ok?await resA.json():[];
   var resC=await sbFetch('/rest/v1/clientes_almacen?select=id,razon_social');
   var clientes=await resC.json();
   var clienteId=null;
-  var nombreLower=data.cliente.toLowerCase();
-  for(var i=0;i<clientes.length;i++){
-    if(clientes[i].razon_social&&clientes[i].razon_social.toLowerCase().indexOf(nombreLower.split(' ')[0].toLowerCase())>=0){
-      clienteId=clientes[i].id;break;
+  var nombreLower=data.cliente.toLowerCase().trim();
+  var matchType='';
+
+  // Check aliases (exact and partial)
+  for(var i=0;i<aliases.length;i++){
+    var aliasLower=aliases[i].nombre_pdf.toLowerCase().trim();
+    if(nombreLower===aliasLower||nombreLower.indexOf(aliasLower)>=0||aliasLower.indexOf(nombreLower)>=0){
+      clienteId=aliases[i].cliente_id;matchType='alias';break;
     }
-    if(nombreLower.indexOf(clientes[i].razon_social.toLowerCase().split(' ')[0].toLowerCase())>=0){
-      clienteId=clientes[i].id;break;
+  }
+
+  // 2. Si no hay alias, buscar en clientes_almacen
+  if(!clienteId){
+    for(var i=0;i<clientes.length;i++){
+      if(clientes[i].razon_social&&clientes[i].razon_social.toLowerCase().indexOf(nombreLower.split(' ')[0].toLowerCase())>=0){
+        clienteId=clientes[i].id;matchType='razon_social';break;
+      }
+      if(nombreLower.indexOf(clientes[i].razon_social.toLowerCase().split(' ')[0].toLowerCase())>=0){
+        clienteId=clientes[i].id;matchType='razon_social';break;
+      }
     }
   }
   if(!clienteId){
-    // Buscar por cualquier palabra en común
     for(var i=0;i<clientes.length;i++){
       var words=clientes[i].razon_social.toLowerCase().split(/\s+/);
       for(var w=0;w<words.length;w++){
-        if(words[w].length>3&&nombreLower.indexOf(words[w])>=0){clienteId=clientes[i].id;break;}
+        if(words[w].length>3&&nombreLower.indexOf(words[w])>=0){clienteId=clientes[i].id;matchType='parcial';break;}
       }
       if(clienteId)break;
     }
   }
 
-  return{clientes:clientes,clienteId:clienteId};
+  return{clientes:clientes,clienteId:clienteId,matchType:matchType,aliases:aliases};
 }
 
 async function confirmarYGuardar(data,clienteId){
@@ -2162,6 +2176,7 @@ async function renderFacturacion(){
     '<svg class="ico ico-sm" viewBox="0 0 24 24" style="display:inline;vertical-align:middle;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+
     'Cargar PDF</button>'+
     '<button class="btn-ghost" onclick="modalCatalogoServicios()">Catálogo</button>'+
+    '<button class="btn-ghost" onclick="modalAliasClientes()">Alias</button>'+
     '</div></div>';
 
   // KPIs (dynamic)
@@ -2503,8 +2518,21 @@ async function procesarPdf(file){
       html+='<option value="'+c.id+'"'+(c.id===match.clienteId?' selected':'')+'>'+esc(c.razon_social)+'</option>';
     });
     html+='</select>';
-    if(match.clienteId){html+='<div style="font-size:10px;color:var(--green);margin-top:3px;">✓ Match encontrado automáticamente</div>';}
-    else{html+='<div style="font-size:10px;color:var(--yellow);margin-top:3px;">⚠ No se encontró match automático — seleccioná el cliente</div>';}
+    if(match.matchType==='alias'){
+      html+='<div style="font-size:10px;color:var(--green);margin-top:3px;">✓ Match por alias registrado</div>';
+    }else if(match.clienteId){
+      html+='<div style="font-size:10px;color:var(--green);margin-top:3px;">✓ Match encontrado automáticamente</div>';
+    }else{
+      html+='<div style="font-size:10px;color:var(--yellow);margin-top:3px;">⚠ No se encontró match — seleccioná el cliente</div>';
+    }
+    // Opción de guardar alias
+    var yaExisteAlias=false;
+    for(var ai=0;ai<match.aliases.length;ai++){if(match.aliases[ai].nombre_pdf.toLowerCase().trim()===data.cliente.toLowerCase().trim()){yaExisteAlias=true;break;}}
+    if(!yaExisteAlias){
+      html+='<label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;cursor:pointer;">'+
+        '<input type="checkbox" id="chkGuardarAlias" checked style="width:14px;height:14px;"/>'+
+        'Guardar "'+esc(data.cliente)+'" como alias de este cliente</label>';
+    }
     html+='</div>';
 
     // Preview lines
@@ -2542,6 +2570,12 @@ async function confirmarGuardarPdf(){
 
   document.getElementById('modalFooter').innerHTML='<div style="color:var(--text3);font-size:12px;">Guardando...</div>';
 
+  // Guardar alias si checkbox marcado
+  var chk=document.getElementById('chkGuardarAlias');
+  if(chk&&chk.checked&&data.cliente.trim()){
+    await sbFetch('/rest/v1/clientes_alias',{method:'POST',body:JSON.stringify({cliente_id:clienteId,nombre_pdf:data.cliente.trim()})});
+  }
+
   var ok=await confirmarYGuardar(data,clienteId);
   if(ok){closeModal();renderFacturacion();}
   else{document.getElementById('modalFooter').innerHTML='<button class="btn-ghost" onclick="closeModal()">Cerrar</button>';}
@@ -2569,6 +2603,70 @@ async function modalCatalogoServicios(){
   body+='</tbody></table></div>';
 
   openModal('Catálogo de Servicios ('+cat.length+')',body,'<button class="btn-ghost" onclick="closeModal()">Cerrar</button>');
+}
+
+// Modal: Alias de Clientes
+async function modalAliasClientes(){
+  var resA=await sbFetch('/rest/v1/clientes_alias?select=*,clientes_almacen(razon_social)&order=nombre_pdf');
+  var alias=resA.ok?await resA.json():[];
+  var resC=await sbFetch('/rest/v1/clientes_almacen?select=id,razon_social&order=razon_social');
+  var clientes=resC.ok?await resC.json():[];
+
+  var body='<div style="margin-bottom:12px;">'+
+    '<div style="display:flex;gap:6px;align-items:end;">'+
+    '<div style="flex:1;"><label>Nombre en PDF</label><input id="aliasNombre" placeholder="Ej: ALG, CFS..." style="padding:7px 10px;"/></div>'+
+    '<div style="flex:1;"><label>Cliente</label><select id="aliasCliente" style="padding:7px 10px;">';
+  clientes.forEach(function(c){body+='<option value="'+c.id+'">'+esc(c.razon_social)+'</option>';});
+  body+='</select></div>'+
+    '<button class="btn-primary" onclick="guardarAlias()" style="height:36px;white-space:nowrap;">+ Agregar</button>'+
+    '</div></div>';
+
+  body+='<div id="aliasTabla" style="max-height:300px;overflow-y:auto;">';
+  body+=renderAliasTabla(alias);
+  body+='</div>';
+
+  openModal('Alias de Clientes ('+alias.length+')',body,'<button class="btn-ghost" onclick="closeModal()">Cerrar</button>');
+}
+
+function renderAliasTabla(alias){
+  var html='<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+    '<thead><tr style="background:var(--bg-elev);">'+
+    '<th style="padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);">Nombre en PDF</th>'+
+    '<th style="padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);">Cliente Asignado</th>'+
+    '<th style="padding:6px 10px;text-align:center;font-size:10px;color:var(--text3);width:50px;"></th></tr></thead><tbody>';
+  if(alias.length===0){html+='<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text3);">Sin alias. Se crean automáticamente al cargar PDFs.</td></tr>';}
+  alias.forEach(function(a,i){
+    var clienteNombre=(a.clientes_almacen&&a.clientes_almacen.razon_social)||'—';
+    html+='<tr style="border-top:1px solid var(--border);'+(i%2?'background:var(--bg-elev);':'')+'">'+
+      '<td style="padding:6px 10px;font-weight:600;">'+esc(a.nombre_pdf)+'</td>'+
+      '<td style="padding:6px 10px;">'+esc(clienteNombre)+'</td>'+
+      '<td style="padding:6px 10px;text-align:center;"><button onclick="eliminarAlias(\''+a.id+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;" title="Eliminar">✕</button></td></tr>';
+  });
+  html+='</tbody></table>';
+  return html;
+}
+
+async function guardarAlias(){
+  var nombre=document.getElementById('aliasNombre').value.trim();
+  var clienteId=parseInt(document.getElementById('aliasCliente').value);
+  if(!nombre){toast('Ingresá el nombre del PDF','error');return;}
+  var res=await sbFetch('/rest/v1/clientes_alias',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify({cliente_id:clienteId,nombre_pdf:nombre})});
+  if(res.ok){
+    document.getElementById('aliasNombre').value='';
+    toast('Alias guardado');
+    modalAliasClientes();
+  }else{
+    var err=await res.json();
+    if(err.message&&err.message.indexOf('duplicate')>=0)toast('Ese alias ya existe','error');
+    else toast('Error al guardar','error');
+  }
+}
+
+async function eliminarAlias(id){
+  if(!confirm('¿Eliminar este alias?'))return;
+  await sbFetch('/rest/v1/clientes_alias?id=eq.'+id,{method:'DELETE'});
+  toast('Alias eliminado');
+  modalAliasClientes();
 }
 
 window.addEventListener('load',function(){if(loadSession()){showApp();startRefreshInterval();navTo('dashboard');cargarAlertas();setInterval(cargarAlertas,5*60*1000);}else{document.getElementById('loginOverlay').style.display='flex';document.getElementById('app').style.display='none';}});
