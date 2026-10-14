@@ -341,7 +341,7 @@ tr:hover td{background:rgba(30,49,96,.35);}
     </div>
 
     <div class="sb-footer">
-      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.6.1 · 14-Oct-2026</div>
+      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.6.3 · 15-Oct-2026</div>
       <div class="sb-user" onclick="logout()">
         <div class="avatar" id="uAvatar">W</div>
         <div style="flex:1;min-width:0;">
@@ -2244,7 +2244,7 @@ function aplicarFiltroGlobal(){
     if(!porCliente[cn].meses[key])porCliente[cn].meses[key]=0;
     porCliente[cn].meses[key]+=parseFloat(r.total_monto)||0;
   });
-  var clientesList=Object.values(porCliente).sort(function(a,b){return b.total-a.total;});
+  var clientesList=Object.values(porCliente).sort(function(a,b){return a.nombre.localeCompare(b.nombre);});
 
   // Meses únicos
   var mesesUnicos={};
