@@ -341,7 +341,7 @@ tr:hover td{background:rgba(30,49,96,.35);}
     </div>
 
     <div class="sb-footer">
-      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.8.1 · 16-Oct-2026</div>
+      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.8.2 · 16-Oct-2026</div>
       <div class="sb-user" onclick="logout()">
         <div class="avatar" id="uAvatar">W</div>
         <div style="flex:1;min-width:0;">
@@ -2287,41 +2287,47 @@ async function confirmarGuardarExcel(){
     }
 
     // Insertar un encabezado + detalles por cada mes
-    for(var mes in porMes){
-      var mesNum=parseInt(mes);
-      var lineas=porMes[mes];
+    var mesesKeys=Object.keys(porMes).sort(function(a,b){return parseInt(a)-parseInt(b);});
+    for(var mi=0;mi<mesesKeys.length;mi++){
+      var mesNum=parseInt(mesesKeys[mi]);
+      var lineas=porMes[mesesKeys[mi]];
       var totalMes=lineas.reduce(function(a,l){return a+l.monto;},0);
       var totalCant=lineas.reduce(function(a,l){return a+(l.cantidad||0);},0);
+      var archivoNombre=ex.archivo+' ['+p.sheet+']';
 
-      // Check duplicado
-      var checkUrl='/rest/v1/facturacion_encabezado?cliente_id=eq.'+clienteId+'&periodo_anio=eq.'+anio+'&periodo_mes=eq.'+mesNum+'&archivo_nombre=eq.'+encodeURIComponent(ex.archivo);
-      var resCheck=await sbFetch(checkUrl);
-      var existing=await resCheck.json();
-      if(existing.length>0){
-        await sbFetch('/rest/v1/facturacion_encabezado?id=eq.'+existing[0].id,{method:'DELETE'});
+      try{
+        // Check duplicado exacto (mismo archivo + pestaña)
+        var checkUrl='/rest/v1/facturacion_encabezado?cliente_id=eq.'+clienteId+'&periodo_anio=eq.'+anio+'&periodo_mes=eq.'+mesNum+'&archivo_nombre=eq.'+encodeURIComponent(archivoNombre);
+        var resCheck=await sbFetch(checkUrl);
+        var existing=await resCheck.json();
+        if(existing.length>0){
+          await sbFetch('/rest/v1/facturacion_encabezado?id=eq.'+existing[0].id,{method:'DELETE'});
+        }
+
+        var lastDay=new Date(anio,mesNum,0).getDate();
+        var encBody={
+          cliente_id:clienteId,
+          periodo_anio:anio,
+          periodo_mes:mesNum,
+          fecha_inicio:anio+'-'+(mesNum<10?'0':'')+mesNum+'-01',
+          fecha_fin:anio+'-'+(mesNum<10?'0':'')+mesNum+'-'+lastDay,
+          total_cantidad:totalCant,
+          total_monto:totalMes,
+          archivo_nombre:archivoNombre
+        };
+        var resEnc=await sbFetch('/rest/v1/facturacion_encabezado',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(encBody)});
+        var enc=await resEnc.json();
+        if(!enc||!enc[0]||!enc[0].id){errors++;console.error('Error enc mes '+mesNum,enc);continue;}
+
+        var detalles=lineas.map(function(l){
+          return{encabezado_id:enc[0].id,codigo_servicio:l.codigo,descripcion_factura:l.descripcion,cantidad:l.cantidad||0,monto:l.monto};
+        });
+        var resDet=await sbFetch('/rest/v1/facturacion_detalle',{method:'POST',body:JSON.stringify(detalles)});
+        if(resDet.ok)totalInserted++;
+        else{errors++;console.error('Error det mes '+mesNum,await resDet.text());}
+      }catch(err){
+        errors++;console.error('Error procesando mes '+mesNum+':',err);
       }
-
-      var lastDay=new Date(anio,mesNum,0).getDate();
-      var encBody={
-        cliente_id:clienteId,
-        periodo_anio:anio,
-        periodo_mes:mesNum,
-        fecha_inicio:anio+'-'+(mesNum<10?'0':'')+mesNum+'-01',
-        fecha_fin:anio+'-'+(mesNum<10?'0':'')+mesNum+'-'+lastDay,
-        total_cantidad:totalCant,
-        total_monto:totalMes,
-        archivo_nombre:ex.archivo+' ['+p.sheet+']'
-      };
-      var resEnc=await sbFetch('/rest/v1/facturacion_encabezado',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(encBody)});
-      var enc=await resEnc.json();
-      if(!enc||!enc[0]||!enc[0].id){errors++;continue;}
-
-      var detalles=lineas.map(function(l){
-        return{encabezado_id:enc[0].id,codigo_servicio:l.codigo,descripcion_factura:l.descripcion,cantidad:l.cantidad||0,monto:l.monto};
-      });
-      var resDet=await sbFetch('/rest/v1/facturacion_detalle',{method:'POST',body:JSON.stringify(detalles)});
-      if(resDet.ok)totalInserted++;
-      else errors++;
     }
 
     // Guardar alias si no existe
