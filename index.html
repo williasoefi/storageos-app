@@ -2294,8 +2294,10 @@ async function confirmarGuardarExcel(){
 
     // Insertar un encabezado + detalles por cada mes
     var mesesKeys=Object.keys(porMes).sort(function(a,b){return parseInt(a)-parseInt(b);});
+    console.log('[StorageOS] Pestaña: '+p.sheet+', Meses a guardar: '+mesesKeys.join(','));
     for(var mi=0;mi<mesesKeys.length;mi++){
       var mesNum=parseInt(mesesKeys[mi]);
+      console.log('[StorageOS] Procesando mes '+mesNum+' ('+MESES_LABEL[mesNum]+')');
       var lineas=porMes[mesesKeys[mi]];
       var totalMes=lineas.reduce(function(a,l){return a+l.monto;},0);
       var totalCant=lineas.reduce(function(a,l){return a+(l.cantidad||0);},0);
@@ -2329,10 +2331,10 @@ async function confirmarGuardarExcel(){
           return{encabezado_id:enc[0].id,codigo_servicio:l.codigo,descripcion_factura:l.descripcion,cantidad:l.cantidad||0,monto:l.monto};
         });
         var resDet=await sbFetch('/rest/v1/facturacion_detalle',{method:'POST',body:JSON.stringify(detalles)});
-        if(resDet.ok)totalInserted++;
-        else{errors++;console.error('Error det mes '+mesNum,await resDet.text());}
+        if(resDet.ok){totalInserted++;console.log('[StorageOS] ✓ Mes '+mesNum+' guardado OK');}
+        else{errors++;console.error('[StorageOS] ✗ Error detalle mes '+mesNum,await resDet.text());}
       }catch(err){
-        errors++;console.error('Error procesando mes '+mesNum+':',err);
+        errors++;console.error('[StorageOS] ✗ Error mes '+mesNum+':',err);
       }
     }
 
