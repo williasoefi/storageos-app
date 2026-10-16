@@ -341,7 +341,7 @@ tr:hover td{background:rgba(30,49,96,.35);}
     </div>
 
     <div class="sb-footer">
-      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.8.3 · 16-Oct-2026</div>
+      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.8.4 · 16-Oct-2026</div>
       <div class="sb-user" onclick="logout()">
         <div class="avatar" id="uAvatar">W</div>
         <div style="flex:1;min-width:0;">
@@ -2478,9 +2478,9 @@ async function renderFacturacion(){
   area.innerHTML='<div class="loading">Cargando facturación...</div>';
 
   // Cargar datos
-  var resR=await sbFetch('/rest/v1/v_facturacion_resumen?select=*&order=periodo_anio.desc,periodo_mes.desc');
+  var resR=await sbFetch('/rest/v1/v_facturacion_resumen?select=*&order=periodo_anio.desc,periodo_mes.desc&limit=5000');
   var resumen=resR.ok?await resR.json():[];
-  var resS=await sbFetch('/rest/v1/v_facturacion_por_servicio?select=*');
+  var resS=await sbFetch('/rest/v1/v_facturacion_por_servicio?select=*&limit=10000');
   var servicios=resS.ok?await resS.json():[];
   var resC=await sbFetch('/rest/v1/clientes_almacen?select=id,razon_social&order=razon_social');
   var clientes=resC.ok?await resC.json():[];
