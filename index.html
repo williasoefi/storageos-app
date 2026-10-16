@@ -341,7 +341,7 @@ tr:hover td{background:rgba(30,49,96,.35);}
     </div>
 
     <div class="sb-footer">
-      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.8.0 · 16-Oct-2026</div>
+      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v1.8.1 · 16-Oct-2026</div>
       <div class="sb-user" onclick="logout()">
         <div class="avatar" id="uAvatar">W</div>
         <div style="flex:1;min-width:0;">
@@ -2425,24 +2425,36 @@ async function confirmarYGuardar(data,clienteId){
 function fnCategoria(codigo){
   if(/^CAF|^CAS/.test(codigo))return'cargos_pagos';
   if(/^CDC/.test(codigo))return'carga_descarga';
+  if(/^CPC/.test(codigo))return'comisiones';
   if(/^F?FLE/.test(codigo))return'transporte';
   if(/^GEN/.test(codigo))return'generales';
-  if(/^HES/.test(codigo))return'horas_extra';
+  if(/^HES|^HEX/.test(codigo))return'horas_extra';
   if(/^INS/.test(codigo))return'inspeccion';
   if(/^SAD/.test(codigo))return'administracion';
-  if(/^SAL/.test(codigo))return'almacenaje';
+  if(/^SAL|^ALM/.test(codigo))return'almacenaje';
   if(/^SBD/.test(codigo))return'servicios_bodega';
   if(/^SEG/.test(codigo))return'seguros';
   if(/^SEP/.test(codigo))return'puerto_cepa';
-  if(/^SIN/.test(codigo))return'inventario';
+  if(/^SIN|^TIF/.test(codigo))return'inventario';
   if(/^SME|^SMAA/.test(codigo))return'mensajeria_admin';
-  if(/^TAD/.test(codigo))return'aduana';
-  if(/^TIF/.test(codigo))return'inventario';
+  if(/^TAD|^TRA/.test(codigo))return'aduana';
   if(/^VEH/.test(codigo))return'vehiculos';
+  if(/^ALI/.test(codigo))return'alistamiento';
+  if(/^ARM/.test(codigo))return'armado';
+  if(/^BAR/.test(codigo))return'barandales';
+  if(/^BAT/.test(codigo))return'baterias';
+  if(/^COM/.test(codigo))return'combustible';
+  if(/^DES/.test(codigo))return'carga_descarga';
+  if(/^LAV/.test(codigo))return'lavado';
+  if(/^PIN/.test(codigo))return'pintura';
+  if(/^PUL/.test(codigo))return'pulido';
+  if(/^PZA/.test(codigo))return'piezas';
+  if(/^REC/.test(codigo))return'recepcion';
+  if(/^REI/.test(codigo))return'reintegros';
   return'otros';
 }
 
-var CAT_LABELS={cargos_pagos:'Cargos/Pagos',carga_descarga:'Carga/Descarga',transporte:'Transporte',generales:'Generales',horas_extra:'Horas Extra',inspeccion:'Inspección',administracion:'Administración',almacenaje:'Almacenaje',servicios_bodega:'Serv. Bodega',seguros:'Seguros',puerto_cepa:'Puerto/CEPA',inventario:'Inventario',mensajeria_admin:'Mensajería/Admin',aduana:'Aduana',vehiculos:'Vehículos',otros:'Otros',sin_categoria:'Sin categoría'};
+var CAT_LABELS={cargos_pagos:'Cargos/Pagos',carga_descarga:'Carga/Descarga',comisiones:'Comisiones',transporte:'Transporte',generales:'Generales',horas_extra:'Horas Extra',inspeccion:'Inspección',administracion:'Administración',almacenaje:'Almacenaje',servicios_bodega:'Serv. Bodega',seguros:'Seguros',puerto_cepa:'Puerto/CEPA',inventario:'Inventario',mensajeria_admin:'Mensajería/Admin',aduana:'Aduana',vehiculos:'Vehículos',alistamiento:'Alistamiento',armado:'Armado',barandales:'Barandales',baterias:'Baterías',combustible:'Combustible',lavado:'Lavado',pintura:'Pintura',pulido:'Pulido',piezas:'Piezas',recepcion:'Recepción',reintegros:'Reintegros',otros:'Otros',sin_categoria:'Sin categoría'};
 
 var MESES_LABEL=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 function fmtC(n){var v=Math.round(parseFloat(n)||0);return v.toLocaleString('en-US');}
