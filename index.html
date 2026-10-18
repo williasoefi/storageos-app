@@ -339,9 +339,14 @@ tr:hover td{background:rgba(30,49,96,.35);}
       <svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
       Reportes
     </div>
+    <div class="sb-section">SSO</div>
+    <div class="sb-item" data-page="sso" onclick="navTo('sso')">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Seguridad
+    </div>
 
     <div class="sb-footer">
-      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v2.0.0 · 16-Oct-2026</div>
+      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v2.1.0 · 18-Oct-2026</div>
       <div class="sb-user" onclick="logout()">
         <div class="avatar" id="uAvatar">W</div>
         <div style="flex:1;min-width:0;">
@@ -442,11 +447,11 @@ function showApp(){
   if(_user&&_user.email){var name=_user.email.split('@')[0];document.getElementById('uName').textContent=name;document.getElementById('uAvatar').textContent=name[0].toUpperCase();}
 }
 
-var CRUMBS={dashboard:'Dashboard',bodegas:'Bodegas',clientes:'Clientes',contratos:'Contratos',facturacion:'Facturación',ocupaciones:'Ocupaciones',proyeccion:'Proyección',reportes:'Reportes'};
+var CRUMBS={dashboard:'Dashboard',bodegas:'Bodegas',clientes:'Clientes',contratos:'Contratos',facturacion:'Facturación',ocupaciones:'Ocupaciones',proyeccion:'Proyección',reportes:'Reportes',sso:'SSO — Seguridad'};
 function navTo(page){
   document.querySelectorAll('.sb-item').forEach(function(t){t.classList.toggle('active',t.getAttribute('data-page')===page);});
   document.getElementById('crumb').textContent=CRUMBS[page]||page;
-  var pages={dashboard:renderDashboard,bodegas:renderBodegas,clientes:renderClientes,contratos:renderContratos,facturacion:renderFacturacion,ocupaciones:renderOcupaciones,proyeccion:renderProyeccion,reportes:renderReportes};
+  var pages={dashboard:renderDashboard,bodegas:renderBodegas,clientes:renderClientes,contratos:renderContratos,facturacion:renderFacturacion,ocupaciones:renderOcupaciones,proyeccion:renderProyeccion,reportes:renderReportes,sso:renderSSO};
   if(pages[page])pages[page]();
 }
 function toast(msg,type){var el=document.getElementById('toast');el.textContent=msg;el.className='toast show '+(type||'success');setTimeout(function(){el.className='toast';},3000);}
@@ -3807,6 +3812,290 @@ async function eliminarAlias(id){
   await sbFetch('/rest/v1/clientes_alias?id=eq.'+id,{method:'DELETE'});
   toast('Alias eliminado');
   modalAliasClientes();
+}
+
+// ═══════════════════════════════════════════════════════
+// SSO — Seguridad y Salud Ocupacional
+// ═══════════════════════════════════════════════════════
+
+var _ssoTab='extintores';
+
+async function renderSSO(){
+  var area=document.getElementById('mainArea');
+  area.innerHTML='<div class="loading">Cargando SSO...</div>';
+
+  var [rExt,rLuz,rBod,rTipoE,rTipoL]=await Promise.all([
+    sbFetch('/rest/v1/v_extintores?select=*&order=bodega_nombre,codigo_barras&limit=5000'),
+    sbFetch('/rest/v1/v_luces?select=*&order=bodega_nombre,codigo_barras&limit=5000'),
+    sbFetch('/rest/v1/bodegas?select=id,nombre,tipo&order=nombre'),
+    sbFetch('/rest/v1/tipos_extintor?select=*&order=nombre'),
+    sbFetch('/rest/v1/tipos_luz?select=*&order=nombre')
+  ]);
+
+  var extintores=rExt.ok?await rExt.json():[];
+  var luces=rLuz.ok?await rLuz.json():[];
+  var bodegas=rBod.ok?await rBod.json():[];
+  var tiposExt=rTipoE.ok?await rTipoE.json():[];
+  var tiposLuz=rTipoL.ok?await rTipoL.json():[];
+
+  window._ssoData={extintores:extintores,luces:luces,bodegas:bodegas,tiposExt:tiposExt,tiposLuz:tiposLuz};
+
+  // KPIs
+  var vencidos=extintores.filter(function(e){return e.estado_vencimiento==='vencido';}).length;
+  var porVencer=extintores.filter(function(e){return e.estado_vencimiento==='por_vencer';}).length;
+  var vigentes=extintores.filter(function(e){return e.estado_vencimiento==='vigente';}).length;
+
+  var html='<div class="page-header"><div><div class="page-title">'+
+    '<svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'+
+    ' SSO — Seguridad y Salud Ocupacional</div>'+
+    '<div class="page-sub">Control de extintores y luces de emergencia</div></div></div>';
+
+  // KPIs
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px;">'+
+    ssoKpi('Extintores',extintores.length,'var(--brand)')+
+    ssoKpi('Vigentes',vigentes,'#10b981')+
+    ssoKpi('Por Vencer (30d)',porVencer,'#f59e0b')+
+    ssoKpi('Vencidos',vencidos,'#ef4444')+
+    ssoKpi('Luces',luces.length,'var(--purple)')+
+    ssoKpi('Ubicaciones',bodegas.length,'var(--steel)')+
+    '</div>';
+
+  // Tabs
+  html+='<div style="display:flex;gap:4px;margin-bottom:14px;">'+
+    '<button class="'+((_ssoTab==='extintores')?'btn-primary':'btn-ghost')+'" id="ssoTabExt" onclick="ssoTab(\'extintores\')" style="font-size:11px;">Extintores</button>'+
+    '<button class="'+((_ssoTab==='luces')?'btn-primary':'btn-ghost')+'" id="ssoTabLuz" onclick="ssoTab(\'luces\')" style="font-size:11px;">Luces de Emergencia</button>'+
+    '</div>';
+  html+='<div id="ssoContent"></div>';
+  area.innerHTML=html;
+  ssoTab(_ssoTab);
+}
+
+function ssoKpi(label,value,color){
+  return '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">'+
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:4px;">'+label+'</div>'+
+    '<div style="font-size:22px;font-weight:800;color:'+color+';">'+value+'</div></div>';
+}
+
+function ssoTab(tab){
+  _ssoTab=tab;
+  document.getElementById('ssoTabExt').className=tab==='extintores'?'btn-primary':'btn-ghost';
+  document.getElementById('ssoTabLuz').className=tab==='luces'?'btn-primary':'btn-ghost';
+  if(tab==='extintores')renderExtintores();
+  else renderLuces();
+}
+
+// ═══ EXTINTORES ═══
+function renderExtintores(){
+  var d=window._ssoData;
+  var el=document.getElementById('ssoContent');
+
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'+
+    '<div style="display:flex;gap:8px;align-items:center;">'+
+    '<select id="ssoFiltBod" onchange="renderExtintores()" style="width:auto;min-width:160px;padding:6px 10px;font-size:12px;">'+
+    '<option value="">— Todas las ubicaciones —</option>';
+  d.bodegas.forEach(function(b){html+='<option value="'+b.id+'">'+esc(b.nombre)+'</option>';});
+  html+='</select>'+
+    '<select id="ssoFiltEstado" onchange="renderExtintores()" style="width:auto;padding:6px 10px;font-size:12px;">'+
+    '<option value="">— Todo estado —</option>'+
+    '<option value="vigente">Vigente</option>'+
+    '<option value="por_vencer">Por vencer</option>'+
+    '<option value="vencido">Vencido</option>'+
+    '</select></div>'+
+    '<button class="btn-primary" onclick="modalExtintor(0)" style="font-size:11px;">+ Nuevo Extintor</button></div>';
+
+  var filtBod=document.getElementById('ssoFiltBod');
+  var filtEst=document.getElementById('ssoFiltEstado');
+  var fb=filtBod?filtBod.value:'';
+  var fe=filtEst?filtEst.value:'';
+
+  var filtered=d.extintores.filter(function(e){
+    if(fb&&e.bodega_id!=fb)return false;
+    if(fe&&e.estado_vencimiento!==fe)return false;
+    return true;
+  });
+
+  html+='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;">'+
+    '<thead><tr style="background:var(--bg-elev);">';
+  ['Código','Ubicación','Tipo','F. Revisión','Vencimiento','Estado','Detalle',''].forEach(function(h){
+    html+='<th style="padding:6px 8px;text-align:left;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);white-space:nowrap;">'+h+'</th>';
+  });
+  html+='</tr></thead><tbody>';
+
+  if(filtered.length===0){
+    html+='<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text3);">Sin extintores registrados'+(fb||fe?' con estos filtros':'')+'.</td></tr>';
+  }
+  filtered.forEach(function(e,i){
+    var estadoColor=e.estado_vencimiento==='vencido'?'#ef4444':e.estado_vencimiento==='por_vencer'?'#f59e0b':'#10b981';
+    var estadoLabel=e.estado_vencimiento==='vencido'?'Vencido':e.estado_vencimiento==='por_vencer'?'Por vencer':e.estado_vencimiento==='vigente'?'Vigente':'Sin fecha';
+    var fechaRev=e.fecha_revision?new Date(e.fecha_revision+'T12:00:00').toLocaleDateString('es-SV'):'—';
+    var fechaVenc=e.fecha_vencimiento?new Date(e.fecha_vencimiento+'T12:00:00').toLocaleDateString('es-SV'):'—';
+
+    html+='<tr style="border-bottom:1px solid var(--border);'+(i%2?'background:var(--bg-elev);':'')+'">'+
+      '<td style="padding:5px 8px;font-family:monospace;font-weight:600;color:var(--steel);">'+(esc(e.codigo_barras)||'—')+'</td>'+
+      '<td style="padding:5px 8px;">'+esc(e.bodega_nombre)+'</td>'+
+      '<td style="padding:5px 8px;"><span style="background:var(--brand-soft);color:var(--brand);padding:1px 6px;border-radius:8px;font-size:9px;font-weight:600;">'+esc(e.tipo_nombre)+'</span></td>'+
+      '<td style="padding:5px 8px;font-size:10px;">'+fechaRev+'</td>'+
+      '<td style="padding:5px 8px;font-size:10px;font-weight:600;color:'+estadoColor+';">'+fechaVenc+'</td>'+
+      '<td style="padding:5px 8px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+estadoColor+';margin-right:4px;vertical-align:middle;"></span><span style="font-size:10px;color:'+estadoColor+';font-weight:600;">'+estadoLabel+'</span></td>'+
+      '<td style="padding:5px 8px;font-size:10px;color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(e.ubicacion_detalle||'')+'</td>'+
+      '<td style="padding:5px 8px;white-space:nowrap;">'+
+        '<button class="btn-ghost" onclick="modalExtintor('+e.id+')" style="padding:2px 6px;font-size:10px;">Editar</button> '+
+        '<button onclick="eliminarExtintor('+e.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;">✕</button></td></tr>';
+  });
+  html+='</tbody></table></div>';
+  html+='<div style="margin-top:8px;font-size:11px;color:var(--text3);">Mostrando '+filtered.length+' de '+d.extintores.length+' extintores</div>';
+  el.innerHTML=html;
+}
+
+function modalExtintor(id){
+  var d=window._ssoData;
+  var e=id?d.extintores.find(function(x){return x.id===id;}):null;
+  var isNew=!e;
+  e=e||{codigo_barras:'',bodega_id:'',tipo_id:'',fecha_revision:'',fecha_vencimiento:'',ubicacion_detalle:'',notas:''};
+
+  var body='<div class="form-row"><div><label>Código de Barras *</label><input id="extCodigo" value="'+esc(e.codigo_barras||'')+'" placeholder="Escanear o ingresar código"/></div>'+
+    '<div><label>Ubicación *</label><select id="extBodega" style="padding:7px 10px;">';
+  d.bodegas.forEach(function(b){body+='<option value="'+b.id+'"'+(b.id==e.bodega_id?' selected':'')+'>'+esc(b.nombre)+' ('+(b.tipo==='predio'?'Predio':'Almacén')+')</option>';});
+  body+='</select></div></div>'+
+    '<div class="form-row"><div><label>Tipo *</label><select id="extTipo" style="padding:7px 10px;">';
+  d.tiposExt.forEach(function(t){body+='<option value="'+t.id+'"'+(t.id==e.tipo_id?' selected':'')+'>'+esc(t.nombre)+'</option>';});
+  body+='</select></div>'+
+    '<div><label>Estado</label><select id="extEstado" style="padding:7px 10px;">'+
+    '<option value="activo"'+(e.estado==='activo'?' selected':'')+'>Activo</option>'+
+    '<option value="baja"'+(e.estado==='baja'?' selected':'')+'>Baja</option></select></div></div>'+
+    '<div class="form-row"><div><label>Fecha Revisión</label><input type="date" id="extRevision" value="'+(e.fecha_revision||'')+'"/></div>'+
+    '<div><label>Fecha Vencimiento</label><input type="date" id="extVencimiento" value="'+(e.fecha_vencimiento||'')+'"/></div></div>'+
+    '<div class="form-row"><div><label>Ubicación Detalle</label><input id="extDetalle" value="'+esc(e.ubicacion_detalle||'')+'" placeholder="Ej: Pasillo 3, columna B"/></div>'+
+    '<div><label>Notas</label><input id="extNotas" value="'+esc(e.notas||'')+'"/></div></div>';
+
+  openModal((isNew?'Nuevo':'Editar')+' Extintor',body,
+    '<button class="btn-ghost" onclick="closeModal()">Cancelar</button>'+
+    '<button class="btn-primary" onclick="guardarExtintor('+(id||0)+')">Guardar</button>');
+}
+
+async function guardarExtintor(id){
+  var body={
+    codigo_barras:document.getElementById('extCodigo').value.trim()||null,
+    bodega_id:parseInt(document.getElementById('extBodega').value),
+    tipo_id:parseInt(document.getElementById('extTipo').value),
+    estado:document.getElementById('extEstado').value,
+    fecha_revision:document.getElementById('extRevision').value||null,
+    fecha_vencimiento:document.getElementById('extVencimiento').value||null,
+    ubicacion_detalle:document.getElementById('extDetalle').value.trim()||null,
+    notas:document.getElementById('extNotas').value.trim()||null
+  };
+  if(!body.bodega_id||!body.tipo_id){toast('Completá ubicación y tipo','error');return;}
+
+  var url=id?'/rest/v1/extintores?id=eq.'+id:'/rest/v1/extintores';
+  var method=id?'PATCH':'POST';
+  var res=await sbFetch(url,{method:method,body:JSON.stringify(body)});
+  if(res.ok){toast(id?'Extintor actualizado':'Extintor creado');closeModal();renderSSO();}
+  else{var err=await res.json();toast('Error: '+(err.message||''),'error');}
+}
+
+async function eliminarExtintor(id){
+  if(!confirm('¿Eliminar este extintor?'))return;
+  await sbFetch('/rest/v1/extintores?id=eq.'+id,{method:'DELETE'});
+  toast('Extintor eliminado');renderSSO();
+}
+
+// ═══ LUCES DE EMERGENCIA ═══
+function renderLuces(){
+  var d=window._ssoData;
+  var el=document.getElementById('ssoContent');
+
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'+
+    '<div style="display:flex;gap:8px;align-items:center;">'+
+    '<select id="ssoFiltBodLuz" onchange="renderLuces()" style="width:auto;min-width:160px;padding:6px 10px;font-size:12px;">'+
+    '<option value="">— Todas las ubicaciones —</option>';
+  d.bodegas.forEach(function(b){html+='<option value="'+b.id+'">'+esc(b.nombre)+'</option>';});
+  html+='</select></div>'+
+    '<button class="btn-primary" onclick="modalLuz(0)" style="font-size:11px;">+ Nueva Luz</button></div>';
+
+  var filtBod=document.getElementById('ssoFiltBodLuz');
+  var fb=filtBod?filtBod.value:'';
+
+  var filtered=d.luces.filter(function(l){
+    if(fb&&l.bodega_id!=fb)return false;
+    return true;
+  });
+
+  html+='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;">'+
+    '<thead><tr style="background:var(--bg-elev);">';
+  ['Código','Ubicación','Tipo','Estado','Detalle',''].forEach(function(h){
+    html+='<th style="padding:6px 8px;text-align:left;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);white-space:nowrap;">'+h+'</th>';
+  });
+  html+='</tr></thead><tbody>';
+
+  if(filtered.length===0){
+    html+='<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text3);">Sin luces registradas'+(fb?' en esta ubicación':'')+'.</td></tr>';
+  }
+  filtered.forEach(function(l,i){
+    var estadoColor=l.estado==='activo'?'#10b981':l.estado==='dañado'?'#f59e0b':'#ef4444';
+    html+='<tr style="border-bottom:1px solid var(--border);'+(i%2?'background:var(--bg-elev);':'')+'">'+
+      '<td style="padding:5px 8px;font-family:monospace;font-weight:600;color:var(--steel);">'+(esc(l.codigo_barras)||'—')+'</td>'+
+      '<td style="padding:5px 8px;">'+esc(l.bodega_nombre)+'</td>'+
+      '<td style="padding:5px 8px;"><span style="background:var(--brand-soft);color:var(--brand);padding:1px 6px;border-radius:8px;font-size:9px;font-weight:600;">'+esc(l.tipo_nombre)+'</span></td>'+
+      '<td style="padding:5px 8px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+estadoColor+';margin-right:4px;vertical-align:middle;"></span><span style="font-size:10px;color:'+estadoColor+';font-weight:600;text-transform:capitalize;">'+esc(l.estado)+'</span></td>'+
+      '<td style="padding:5px 8px;font-size:10px;color:var(--text3);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(l.ubicacion_detalle||'')+'</td>'+
+      '<td style="padding:5px 8px;white-space:nowrap;">'+
+        '<button class="btn-ghost" onclick="modalLuz('+l.id+')" style="padding:2px 6px;font-size:10px;">Editar</button> '+
+        '<button onclick="eliminarLuz('+l.id+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;">✕</button></td></tr>';
+  });
+  html+='</tbody></table></div>';
+  html+='<div style="margin-top:8px;font-size:11px;color:var(--text3);">Mostrando '+filtered.length+' de '+d.luces.length+' luces</div>';
+  el.innerHTML=html;
+}
+
+function modalLuz(id){
+  var d=window._ssoData;
+  var l=id?d.luces.find(function(x){return x.id===id;}):null;
+  var isNew=!l;
+  l=l||{codigo_barras:'',bodega_id:'',tipo_id:'',estado:'activo',ubicacion_detalle:'',notas:''};
+
+  var body='<div class="form-row"><div><label>Código de Barras *</label><input id="luzCodigo" value="'+esc(l.codigo_barras||'')+'" placeholder="Escanear o ingresar código"/></div>'+
+    '<div><label>Ubicación *</label><select id="luzBodega" style="padding:7px 10px;">';
+  d.bodegas.forEach(function(b){body+='<option value="'+b.id+'"'+(b.id==l.bodega_id?' selected':'')+'>'+esc(b.nombre)+' ('+(b.tipo==='predio'?'Predio':'Almacén')+')</option>';});
+  body+='</select></div></div>'+
+    '<div class="form-row"><div><label>Tipo *</label><select id="luzTipo" style="padding:7px 10px;">';
+  d.tiposLuz.forEach(function(t){body+='<option value="'+t.id+'"'+(t.id==l.tipo_id?' selected':'')+'>'+esc(t.nombre)+'</option>';});
+  body+='</select></div>'+
+    '<div><label>Estado</label><select id="luzEstado" style="padding:7px 10px;">'+
+    '<option value="activo"'+(l.estado==='activo'?' selected':'')+'>Activo</option>'+
+    '<option value="dañado"'+(l.estado==='dañado'?' selected':'')+'>Dañado</option>'+
+    '<option value="baja"'+(l.estado==='baja'?' selected':'')+'>Baja</option></select></div></div>'+
+    '<div class="form-row"><div><label>Ubicación Detalle</label><input id="luzDetalle" value="'+esc(l.ubicacion_detalle||'')+'" placeholder="Ej: Entrada principal"/></div>'+
+    '<div><label>Notas</label><input id="luzNotas" value="'+esc(l.notas||'')+'"/></div></div>';
+
+  openModal((isNew?'Nueva':'Editar')+' Luz de Emergencia',body,
+    '<button class="btn-ghost" onclick="closeModal()">Cancelar</button>'+
+    '<button class="btn-primary" onclick="guardarLuz('+(id||0)+')">Guardar</button>');
+}
+
+async function guardarLuz(id){
+  var body={
+    codigo_barras:document.getElementById('luzCodigo').value.trim()||null,
+    bodega_id:parseInt(document.getElementById('luzBodega').value),
+    tipo_id:parseInt(document.getElementById('luzTipo').value),
+    estado:document.getElementById('luzEstado').value,
+    ubicacion_detalle:document.getElementById('luzDetalle').value.trim()||null,
+    notas:document.getElementById('luzNotas').value.trim()||null
+  };
+  if(!body.bodega_id||!body.tipo_id){toast('Completá ubicación y tipo','error');return;}
+
+  var url=id?'/rest/v1/luces_emergencia?id=eq.'+id:'/rest/v1/luces_emergencia';
+  var method=id?'PATCH':'POST';
+  var res=await sbFetch(url,{method:method,body:JSON.stringify(body)});
+  if(res.ok){toast(id?'Luz actualizada':'Luz creada');closeModal();renderSSO();}
+  else{var err=await res.json();toast('Error: '+(err.message||''),'error');}
+}
+
+async function eliminarLuz(id){
+  if(!confirm('¿Eliminar esta luz?'))return;
+  await sbFetch('/rest/v1/luces_emergencia?id=eq.'+id,{method:'DELETE'});
+  toast('Luz eliminada');renderSSO();
 }
 
 window.addEventListener('load',function(){if(loadSession()){showApp();startRefreshInterval();navTo('dashboard');cargarAlertas();setInterval(cargarAlertas,5*60*1000);}else{document.getElementById('loginOverlay').style.display='flex';document.getElementById('app').style.display='none';}});
