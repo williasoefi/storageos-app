@@ -346,7 +346,7 @@ tr:hover td{background:rgba(30,49,96,.35);}
     </div>
 
     <div class="sb-footer">
-      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v2.1.0 · 18-Oct-2026</div>
+      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v2.1.1 · 19-Oct-2026</div>
       <div class="sb-user" onclick="logout()">
         <div class="avatar" id="uAvatar">W</div>
         <div style="flex:1;min-width:0;">
@@ -3719,7 +3719,7 @@ async function modalEliminarFacturas(clienteNombre){
     '<th style="padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);">Período</th>'+
     '<th style="padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);">Archivo</th>'+
     '<th style="padding:6px 10px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--text3);">Monto</th>'+
-    '<th style="padding:6px 10px;text-align:center;font-size:10px;color:var(--text3);width:60px;">Acción</th></tr></thead><tbody>';
+    '<th style="padding:6px 10px;text-align:center;font-size:10px;color:var(--text3);width:120px;">Acción</th></tr></thead><tbody>';
 
   if(registros.length===0){
     body+='<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text3);">Sin registros encontrados</td></tr>';
@@ -3730,12 +3730,156 @@ async function modalEliminarFacturas(clienteNombre){
       '<td style="padding:6px 10px;font-weight:600;">'+periodo+'</td>'+
       '<td style="padding:6px 10px;font-size:11px;color:var(--text2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(r.archivo_nombre||'')+'">'+esc(r.archivo_nombre||'—')+'</td>'+
       '<td style="padding:6px 10px;text-align:right;font-weight:600;color:var(--green);">$'+fmtC(r.total_monto)+'</td>'+
-      '<td style="padding:6px 10px;text-align:center;">'+
+      '<td style="padding:6px 10px;text-align:center;white-space:nowrap;">'+
+      '<button onclick="modalEditarFactura(\''+r.id+'\')" style="background:none;border:1px solid var(--brand);color:var(--brand);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;margin-right:4px;">Editar</button>'+
       '<button onclick="eliminarFactura(\''+r.id+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">Eliminar</button></td></tr>';
   });
   body+='</tbody></table></div>';
 
   openModal('Gestión de Facturas — '+esc(clienteNombre),body,'<button class="btn-ghost" onclick="closeModal()">Cerrar</button>');
+}
+
+async function modalEditarFactura(encId){
+  // Cargar encabezado + detalles
+  var resEnc=await sbFetch('/rest/v1/facturacion_encabezado?id=eq.'+encId+'&select=*,clientes_almacen(razon_social)');
+  var enc=(await resEnc.json())[0];
+  if(!enc){toast('Registro no encontrado','error');return;}
+
+  var resDet=await sbFetch('/rest/v1/facturacion_detalle?encabezado_id=eq.'+encId+'&select=*&order=codigo_servicio');
+  var detalles=await resDet.json();
+
+  var clienteNombre=enc.clientes_almacen?enc.clientes_almacen.razon_social:'';
+  var periodo=MESES_LABEL[enc.periodo_mes]+' '+enc.periodo_anio;
+
+  var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;font-size:12px;">'+
+    '<div><span style="color:var(--text3);">Cliente:</span> <strong>'+esc(clienteNombre)+'</strong></div>'+
+    '<div><span style="color:var(--text3);">Período:</span> <strong>'+periodo+'</strong></div>'+
+    '<div><span style="color:var(--text3);">Archivo:</span> '+esc(enc.archivo_nombre||'—')+'</div>'+
+    '<div><span style="color:var(--text3);">Factura No:</span> <input id="editFactNum" value="'+esc(enc.numero_factura||'')+'" style="padding:3px 6px;font-size:11px;width:120px;" placeholder="Opcional"/></div>'+
+    '</div>';
+
+  // Tabla editable de detalles
+  body+='<div style="max-height:300px;overflow-y:auto;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;">'+
+    '<thead><tr style="background:var(--bg-elev);position:sticky;top:0;">'+
+    '<th style="padding:5px 8px;text-align:left;font-size:9px;text-transform:uppercase;color:var(--text3);">Código</th>'+
+    '<th style="padding:5px 8px;text-align:left;font-size:9px;text-transform:uppercase;color:var(--text3);">Descripción</th>'+
+    '<th style="padding:5px 8px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--text3);width:80px;">Cantidad</th>'+
+    '<th style="padding:5px 8px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--text3);width:100px;">Monto</th>'+
+    '<th style="padding:5px 4px;width:30px;"></th>'+
+    '</tr></thead><tbody id="editDetBody">';
+
+  detalles.forEach(function(d,i){
+    body+=filaEditDetalle(d,i);
+  });
+  body+='</tbody></table></div>';
+
+  // Botón agregar línea
+  body+='<div style="margin-top:8px;">'+
+    '<button class="btn-ghost" onclick="agregarLineaDetalle()" style="font-size:10px;padding:4px 10px;">+ Agregar línea</button>'+
+    '<span id="editTotalLabel" style="float:right;font-size:12px;font-weight:700;color:var(--green);"></span></div>';
+
+  window._editEncId=encId;
+  window._editDetalles=detalles;
+
+  openModal('Editar Factura — '+periodo+' · '+esc(clienteNombre),body,
+    '<button class="btn-ghost" onclick="closeModal()">Cancelar</button>'+
+    '<button class="btn-primary" onclick="guardarEdicionFactura()">Guardar Cambios</button>');
+
+  recalcEditTotal();
+}
+
+function filaEditDetalle(d,i){
+  return '<tr id="editRow_'+i+'" style="border-top:1px solid var(--border);">'+
+    '<td style="padding:4px 6px;"><input id="editCod_'+i+'" value="'+esc(d.codigo_servicio||'')+'" style="width:70px;padding:3px 5px;font-size:10px;font-family:monospace;"/></td>'+
+    '<td style="padding:4px 6px;"><input id="editDesc_'+i+'" value="'+esc(d.descripcion_factura||'')+'" style="width:100%;padding:3px 5px;font-size:10px;"/></td>'+
+    '<td style="padding:4px 6px;"><input id="editCant_'+i+'" type="number" step="0.01" value="'+(d.cantidad||0)+'" style="width:70px;padding:3px 5px;font-size:10px;text-align:right;" onchange="recalcEditTotal()"/></td>'+
+    '<td style="padding:4px 6px;"><input id="editMonto_'+i+'" type="number" step="0.01" value="'+(d.monto||0)+'" style="width:90px;padding:3px 5px;font-size:10px;text-align:right;" onchange="recalcEditTotal()"/></td>'+
+    '<td style="padding:4px;text-align:center;"><button onclick="eliminarLineaDetalle('+i+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;">✕</button></td></tr>';
+}
+
+function agregarLineaDetalle(){
+  var tbody=document.getElementById('editDetBody');
+  var i=tbody.children.length;
+  var tr=document.createElement('tr');
+  tr.id='editRow_'+i;
+  tr.style.borderTop='1px solid var(--border)';
+  tr.innerHTML='<td style="padding:4px 6px;"><input id="editCod_'+i+'" value="" style="width:70px;padding:3px 5px;font-size:10px;font-family:monospace;" placeholder="COD001"/></td>'+
+    '<td style="padding:4px 6px;"><input id="editDesc_'+i+'" value="" style="width:100%;padding:3px 5px;font-size:10px;" placeholder="Descripción"/></td>'+
+    '<td style="padding:4px 6px;"><input id="editCant_'+i+'" type="number" step="0.01" value="0" style="width:70px;padding:3px 5px;font-size:10px;text-align:right;" onchange="recalcEditTotal()"/></td>'+
+    '<td style="padding:4px 6px;"><input id="editMonto_'+i+'" type="number" step="0.01" value="0" style="width:90px;padding:3px 5px;font-size:10px;text-align:right;" onchange="recalcEditTotal()"/></td>'+
+    '<td style="padding:4px;text-align:center;"><button onclick="eliminarLineaDetalle('+i+')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;">✕</button></td>';
+  tbody.appendChild(tr);
+}
+
+function eliminarLineaDetalle(i){
+  var row=document.getElementById('editRow_'+i);
+  if(row)row.remove();
+  recalcEditTotal();
+}
+
+function recalcEditTotal(){
+  var tbody=document.getElementById('editDetBody');
+  if(!tbody)return;
+  var total=0;
+  for(var i=0;i<tbody.children.length;i++){
+    var tr=tbody.children[i];
+    var idx=tr.id.replace('editRow_','');
+    var montoEl=document.getElementById('editMonto_'+idx);
+    if(montoEl)total+=parseFloat(montoEl.value)||0;
+  }
+  var lbl=document.getElementById('editTotalLabel');
+  if(lbl)lbl.textContent='Total: $'+fmt(total);
+}
+
+async function guardarEdicionFactura(){
+  var encId=window._editEncId;
+  var tbody=document.getElementById('editDetBody');
+
+  // Recoger líneas
+  var nuevasLineas=[];
+  for(var i=0;i<tbody.children.length;i++){
+    var tr=tbody.children[i];
+    var idx=tr.id.replace('editRow_','');
+    var cod=(document.getElementById('editCod_'+idx).value||'').trim();
+    var desc=(document.getElementById('editDesc_'+idx).value||'').trim();
+    var cant=parseFloat(document.getElementById('editCant_'+idx).value)||0;
+    var monto=parseFloat(document.getElementById('editMonto_'+idx).value)||0;
+    if(cod&&monto>0)nuevasLineas.push({codigo_servicio:cod,descripcion_factura:desc,cantidad:cant,monto:monto});
+  }
+
+  if(nuevasLineas.length===0){toast('Debe haber al menos una línea con monto','error');return;}
+
+  var totalMonto=nuevasLineas.reduce(function(a,l){return a+l.monto;},0);
+  var totalCant=nuevasLineas.reduce(function(a,l){return a+l.cantidad;},0);
+
+  // Actualizar encabezado
+  var numFactura=(document.getElementById('editFactNum').value||'').trim();
+  await sbFetch('/rest/v1/facturacion_encabezado?id=eq.'+encId,{method:'PATCH',body:JSON.stringify({
+    total_monto:totalMonto,total_cantidad:totalCant,numero_factura:numFactura||null
+  })});
+
+  // Borrar detalles viejos e insertar nuevos
+  await sbFetch('/rest/v1/facturacion_detalle?encabezado_id=eq.'+encId,{method:'DELETE'});
+
+  var detalles=nuevasLineas.map(function(l){
+    return{encabezado_id:encId,codigo_servicio:l.codigo_servicio,descripcion_factura:l.descripcion_factura,cantidad:l.cantidad,monto:l.monto};
+  });
+  var res=await sbFetch('/rest/v1/facturacion_detalle',{method:'POST',body:JSON.stringify(detalles)});
+
+  // Auto-registrar servicios nuevos en catálogo
+  var resCat=await sbFetch('/rest/v1/catalogo_servicios?select=codigo');
+  var catExist=await resCat.json();
+  var existCodes={};catExist.forEach(function(c){existCodes[c.codigo]=true;});
+  for(var li=0;li<nuevasLineas.length;li++){
+    if(!existCodes[nuevasLineas[li].codigo_servicio]){
+      var cat=fnCategoria(nuevasLineas[li].codigo_servicio);
+      await sbFetch('/rest/v1/catalogo_servicios',{method:'POST',body:JSON.stringify({codigo:nuevasLineas[li].codigo_servicio,descripcion:nuevasLineas[li].descripcion_factura,categoria:cat})});
+    }
+  }
+
+  if(res.ok){toast('Factura actualizada');closeModal();renderFacturacion();}
+  else toast('Error al guardar detalles','error');
 }
 
 async function eliminarFactura(encId){
