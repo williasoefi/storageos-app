@@ -346,7 +346,7 @@ tr:hover td{background:rgba(30,49,96,.35);}
     </div>
 
     <div class="sb-footer">
-      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v2.1.1 · 19-Oct-2026</div>
+      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v2.1.2 · 23-Oct-2026</div>
       <div class="sb-user" onclick="logout()">
         <div class="avatar" id="uAvatar">W</div>
         <div style="flex:1;min-width:0;">
@@ -3753,7 +3753,11 @@ async function modalEditarFactura(encId){
 
   var body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;font-size:12px;">'+
     '<div><span style="color:var(--text3);">Cliente:</span> <strong>'+esc(clienteNombre)+'</strong></div>'+
-    '<div><span style="color:var(--text3);">Período:</span> <strong>'+periodo+'</strong></div>'+
+    '<div style="display:flex;gap:6px;align-items:center;"><span style="color:var(--text3);">Período:</span> '+
+    '<select id="editMes" style="padding:3px 6px;font-size:11px;width:70px;">';
+  for(var mi=1;mi<=12;mi++){body+='<option value="'+mi+'"'+(mi===enc.periodo_mes?' selected':'')+'>'+MESES_LABEL[mi]+'</option>';}
+  body+='</select>'+
+    '<input id="editAnio" type="number" value="'+enc.periodo_anio+'" style="padding:3px 6px;font-size:11px;width:65px;" min="2020" max="2030"/></div>'+
     '<div><span style="color:var(--text3);">Archivo:</span> '+esc(enc.archivo_nombre||'—')+'</div>'+
     '<div><span style="color:var(--text3);">Factura No:</span> <input id="editFactNum" value="'+esc(enc.numero_factura||'')+'" style="padding:3px 6px;font-size:11px;width:120px;" placeholder="Opcional"/></div>'+
     '</div>';
@@ -3855,8 +3859,14 @@ async function guardarEdicionFactura(){
 
   // Actualizar encabezado
   var numFactura=(document.getElementById('editFactNum').value||'').trim();
+  var nuevoMes=parseInt(document.getElementById('editMes').value);
+  var nuevoAnio=parseInt(document.getElementById('editAnio').value);
+  var lastDay=new Date(nuevoAnio,nuevoMes,0).getDate();
   await sbFetch('/rest/v1/facturacion_encabezado?id=eq.'+encId,{method:'PATCH',body:JSON.stringify({
-    total_monto:totalMonto,total_cantidad:totalCant,numero_factura:numFactura||null
+    total_monto:totalMonto,total_cantidad:totalCant,numero_factura:numFactura||null,
+    periodo_mes:nuevoMes,periodo_anio:nuevoAnio,
+    fecha_inicio:nuevoAnio+'-'+(nuevoMes<10?'0':'')+nuevoMes+'-01',
+    fecha_fin:nuevoAnio+'-'+(nuevoMes<10?'0':'')+nuevoMes+'-'+lastDay
   })});
 
   // Borrar detalles viejos e insertar nuevos
