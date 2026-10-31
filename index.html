@@ -339,6 +339,10 @@ tr:hover td{background:rgba(30,49,96,.35);}
       <svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
       Reportes
     </div>
+    <div class="sb-item" data-page="rentabilidad" onclick="navTo('rentabilidad')">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Rentabilidad
+    </div>
     <div class="sb-section">SSO</div>
     <div class="sb-item" data-page="sso" onclick="navTo('sso')">
       <svg class="ico" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -346,7 +350,7 @@ tr:hover td{background:rgba(30,49,96,.35);}
     </div>
 
     <div class="sb-footer">
-      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v2.1.2 · 23-Oct-2026</div>
+      <div style="text-align:center;font-size:9px;color:var(--text3);opacity:.6;margin-bottom:8px;letter-spacing:.04em;">StorageOS v2.2.0 · 30-Oct-2026</div>
       <div class="sb-user" onclick="logout()">
         <div class="avatar" id="uAvatar">W</div>
         <div style="flex:1;min-width:0;">
@@ -447,11 +451,11 @@ function showApp(){
   if(_user&&_user.email){var name=_user.email.split('@')[0];document.getElementById('uName').textContent=name;document.getElementById('uAvatar').textContent=name[0].toUpperCase();}
 }
 
-var CRUMBS={dashboard:'Dashboard',bodegas:'Bodegas',clientes:'Clientes',contratos:'Contratos',facturacion:'Facturación',ocupaciones:'Ocupaciones',proyeccion:'Proyección',reportes:'Reportes',sso:'SSO — Seguridad'};
+var CRUMBS={dashboard:'Dashboard',bodegas:'Bodegas',clientes:'Clientes',contratos:'Contratos',facturacion:'Facturación',ocupaciones:'Ocupaciones',proyeccion:'Proyección',reportes:'Reportes',sso:'SSO — Seguridad',rentabilidad:'Rentabilidad'};
 function navTo(page){
   document.querySelectorAll('.sb-item').forEach(function(t){t.classList.toggle('active',t.getAttribute('data-page')===page);});
   document.getElementById('crumb').textContent=CRUMBS[page]||page;
-  var pages={dashboard:renderDashboard,bodegas:renderBodegas,clientes:renderClientes,contratos:renderContratos,facturacion:renderFacturacion,ocupaciones:renderOcupaciones,proyeccion:renderProyeccion,reportes:renderReportes,sso:renderSSO};
+  var pages={dashboard:renderDashboard,bodegas:renderBodegas,clientes:renderClientes,contratos:renderContratos,facturacion:renderFacturacion,ocupaciones:renderOcupaciones,proyeccion:renderProyeccion,reportes:renderReportes,sso:renderSSO,rentabilidad:renderRentabilidad};
   if(pages[page])pages[page]();
 }
 function toast(msg,type){var el=document.getElementById('toast');el.textContent=msg;el.className='toast show '+(type||'success');setTimeout(function(){el.className='toast';},3000);}
@@ -3966,6 +3970,384 @@ async function eliminarAlias(id){
   await sbFetch('/rest/v1/clientes_alias?id=eq.'+id,{method:'DELETE'});
   toast('Alias eliminado');
   modalAliasClientes();
+}
+
+// ═══════════════════════════════════════════════════════
+// RENTABILIDAD — P&L por Área de Negocio
+// ═══════════════════════════════════════════════════════
+
+var RRHH_URL='https://xlvhgtxxysynahmmewdw.supabase.co';
+var RRHH_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsdmhndHh4eXN5bmFobW1ld2R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEwNzcyMjAsImV4cCI6MjEwNjY1MzIyMH0.VN2PBg_WTVfJ5CG37T-QbS-xE7ZzMYXt72ljvJSfwzE';
+
+function rrhhFetch(path){
+  return fetch(RRHH_URL+path,{headers:{'apikey':RRHH_KEY,'Authorization':'Bearer '+RRHH_KEY,'Content-Type':'application/json'}});
+}
+
+// Mapeo categoría de servicio → área de negocio
+var CAT_TO_AREA={
+  lavado:'Vehiculos',pintura:'Vehiculos',pulido:'Vehiculos',barandales:'Vehiculos',
+  baterias:'Vehiculos',recepcion:'Vehiculos',combustible:'Vehiculos',piezas:'Vehiculos',
+  transporte:'Vehiculos',vehiculos:'Vehiculos',horas_extra:'Vehiculos',
+  almacenaje:'Almacenes',servicios_bodega:'Almacenes',inventario:'Almacenes',
+  alistamiento:'Almacenes',armado:'Almacenes',carga_descarga:'Almacenes',
+  administracion:'Administrativa',mensajeria_admin:'Administrativa',comisiones:'Administrativa',
+  generales:'Administrativa',
+  aduana:'Administrativa',inspeccion:'Administrativa',puerto_cepa:'Administrativa',
+  seguros:'Administrativa'
+};
+
+var _rentTab='resumen';
+
+async function renderRentabilidad(){
+  var area=document.getElementById('mainArea');
+  area.innerHTML='<div class="loading">Cargando datos de rentabilidad...</div>';
+
+  // Fetch RRHH employees (costs)
+  var rEmp=await rrhhFetch('/rest/v1/rrhh_employees?select=area,unit,salary,status&status=eq.Activo&limit=5000');
+  var empleados=rEmp.ok?await rEmp.json():[];
+
+  // Fetch StorageOS billing (revenue)
+  var servicios=await fetchAll('/rest/v1/v_facturacion_por_servicio?select=*');
+  var resumen=await fetchAll('/rest/v1/v_facturacion_resumen?select=*&order=periodo_anio.desc,periodo_mes.desc');
+
+  // Agrupar costos por área y unidad
+  var costosPorArea={};var costoTotal=0;
+  empleados.forEach(function(e){
+    var a=e.area||'Sin área';var u=e.unit||'Sin unidad';var s=parseFloat(e.salary)||0;
+    if(!costosPorArea[a])costosPorArea[a]={total:0,headcount:0,unidades:{}};
+    costosPorArea[a].total+=s;costosPorArea[a].headcount++;
+    if(!costosPorArea[a].unidades[u])costosPorArea[a].unidades[u]={total:0,headcount:0};
+    costosPorArea[a].unidades[u].total+=s;costosPorArea[a].unidades[u].headcount++;
+    costoTotal+=s;
+  });
+
+  // Agrupar ingresos por área y mes
+  var mesesUnicos={};
+  var ingresosPorArea={};var ingresoTotal=0;
+  servicios.forEach(function(s){
+    var cat=s.categoria||'sin_categoria';
+    var areaN=CAT_TO_AREA[cat]||'Otra';
+    var mk=s.periodo_anio+'-'+(s.periodo_mes<10?'0':'')+s.periodo_mes;
+    mesesUnicos[mk]=true;
+    var monto=parseFloat(s.monto)||0;
+    if(!ingresosPorArea[areaN])ingresosPorArea[areaN]={total:0,meses:{},categorias:{}};
+    ingresosPorArea[areaN].total+=monto;
+    if(!ingresosPorArea[areaN].meses[mk])ingresosPorArea[areaN].meses[mk]=0;
+    ingresosPorArea[areaN].meses[mk]+=monto;
+    if(!ingresosPorArea[areaN].categorias[cat])ingresosPorArea[areaN].categorias[cat]=0;
+    ingresosPorArea[areaN].categorias[cat]+=monto;
+    ingresoTotal+=monto;
+  });
+  var mesesArr=Object.keys(mesesUnicos).sort();
+  var numMeses=mesesArr.length||1;
+
+  // Store globally
+  window._rentData={empleados:empleados,servicios:servicios,resumen:resumen,costosPorArea:costosPorArea,ingresosPorArea:ingresosPorArea,costoTotal:costoTotal,ingresoTotal:ingresoTotal,mesesArr:mesesArr,numMeses:numMeses};
+
+  // KPIs
+  var margenTotal=ingresoTotal-(costoTotal*numMeses);
+  var margenPct=ingresoTotal>0?((margenTotal/ingresoTotal)*100):0;
+
+  var html='<div class="page-header"><div><div class="page-title">'+
+    '<svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>'+
+    ' Rentabilidad</div>'+
+    '<div class="page-sub">P&L por Área de Negocio · RRHH + Facturación</div></div></div>';
+
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px;">'+
+    rentKpi('Ingresos ('+numMeses+' meses)','$'+fmtC(ingresoTotal),'var(--green)')+
+    rentKpi('Costo Planilla / Mes','$'+fmtC(costoTotal),'#ef4444')+
+    rentKpi('Costo Planilla Total','$'+fmtC(costoTotal*numMeses),'#ef4444')+
+    rentKpi('Margen Bruto','$'+fmtC(margenTotal),margenTotal>=0?'#10b981':'#ef4444')+
+    rentKpi('Margen %',margenPct.toFixed(1)+'%',margenPct>=0?'#10b981':'#ef4444')+
+    rentKpi('Colaboradores',empleados.length,'var(--steel)')+
+    '</div>';
+
+  // Tabs
+  html+='<div style="display:flex;gap:4px;margin-bottom:14px;">'+
+    '<button class="btn-primary" id="rentTabResumen" onclick="rentTabSwitch(\'resumen\')" style="font-size:11px;">P&L por Área</button>'+
+    '<button class="btn-ghost" id="rentTabDetalle" onclick="rentTabSwitch(\'detalle\')" style="font-size:11px;">Detalle por Unidad</button>'+
+    '<button class="btn-ghost" id="rentTabMensual" onclick="rentTabSwitch(\'mensual\')" style="font-size:11px;">Evolución Mensual</button>'+
+    '</div>';
+  html+='<div id="rentContent"></div>';
+  area.innerHTML=html;
+  rentTabSwitch('resumen');
+}
+
+function rentKpi(label,value,color){
+  return '<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">'+
+    '<div style="font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px;">'+label+'</div>'+
+    '<div style="font-size:18px;font-weight:800;color:'+color+';">'+value+'</div></div>';
+}
+
+function rentTabSwitch(tab){
+  _rentTab=tab;
+  ['rentTabResumen','rentTabDetalle','rentTabMensual'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.className='btn-ghost';
+  });
+  var active=document.getElementById('rentTab'+tab.charAt(0).toUpperCase()+tab.slice(1));
+  if(active)active.className='btn-primary';
+  var d=window._rentData;
+  if(tab==='resumen')renderRentResumen(d);
+  else if(tab==='detalle')renderRentDetalle(d);
+  else renderRentMensual(d);
+}
+
+// ═══ P&L por Área ═══
+function renderRentResumen(d){
+  var el=document.getElementById('rentContent');
+  var areas=['Vehiculos','Almacenes','Administrativa','Gerencia'];
+
+  // P&L Table
+  var html='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;overflow-x:auto;margin-bottom:14px;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+    '<thead><tr style="background:var(--bg-elev);">'+
+    '<th style="padding:8px 12px;text-align:left;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Área</th>'+
+    '<th style="padding:8px 12px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Ingresos</th>'+
+    '<th style="padding:8px 12px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Costo Planilla</th>'+
+    '<th style="padding:8px 12px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Margen</th>'+
+    '<th style="padding:8px 12px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Margen %</th>'+
+    '<th style="padding:8px 12px;text-align:center;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">HC</th>'+
+    '<th style="padding:8px 12px;text-align:right;font-size:10px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Ingreso/HC</th>'+
+    '</tr></thead><tbody>';
+
+  var gtIngreso=0,gtCosto=0,gtHC=0;
+
+  areas.forEach(function(a,idx){
+    var ingreso=(d.ingresosPorArea[a]||{}).total||0;
+    var costoMes=(d.costosPorArea[a]||{}).total||0;
+    var costoTotal=costoMes*d.numMeses;
+    var hc=(d.costosPorArea[a]||{}).headcount||0;
+    var margen=ingreso-costoTotal;
+    var margenPct=ingreso>0?(margen/ingreso*100):0;
+    var ingresoHC=hc>0?(ingreso/hc):0;
+    var mColor=margen>=0?'#10b981':'#ef4444';
+
+    gtIngreso+=ingreso;gtCosto+=costoTotal;gtHC+=hc;
+
+    html+='<tr style="border-bottom:1px solid var(--border);'+(idx%2?'background:var(--bg-elev);':'')+'cursor:pointer;" onclick="rentTabSwitch(\'detalle\')">'+
+      '<td style="padding:8px 12px;font-weight:700;">'+esc(a)+'</td>'+
+      '<td style="padding:8px 12px;text-align:right;color:var(--green);font-weight:600;">$'+fmtC(ingreso)+'</td>'+
+      '<td style="padding:8px 12px;text-align:right;color:#ef4444;">$'+fmtC(costoTotal)+'</td>'+
+      '<td style="padding:8px 12px;text-align:right;font-weight:700;color:'+mColor+';">$'+fmtC(margen)+'</td>'+
+      '<td style="padding:8px 12px;text-align:right;font-weight:600;color:'+mColor+';">'+margenPct.toFixed(1)+'%</td>'+
+      '<td style="padding:8px 12px;text-align:center;">'+hc+'</td>'+
+      '<td style="padding:8px 12px;text-align:right;color:var(--text2);">$'+fmtC(ingresoHC)+'</td></tr>';
+  });
+
+  // Total row
+  var gtMargen=gtIngreso-gtCosto;var gtPct=gtIngreso>0?(gtMargen/gtIngreso*100):0;
+  html+='<tr style="background:var(--bg-elev);font-weight:700;border-top:2px solid var(--border);">'+
+    '<td style="padding:8px 12px;">TOTAL</td>'+
+    '<td style="padding:8px 12px;text-align:right;color:var(--green);">$'+fmtC(gtIngreso)+'</td>'+
+    '<td style="padding:8px 12px;text-align:right;color:#ef4444;">$'+fmtC(gtCosto)+'</td>'+
+    '<td style="padding:8px 12px;text-align:right;color:'+(gtMargen>=0?'#10b981':'#ef4444')+';">$'+fmtC(gtMargen)+'</td>'+
+    '<td style="padding:8px 12px;text-align:right;color:'+(gtPct>=0?'#10b981':'#ef4444')+';">'+gtPct.toFixed(1)+'%</td>'+
+    '<td style="padding:8px 12px;text-align:center;">'+gtHC+'</td>'+
+    '<td style="padding:8px 12px;text-align:right;">$'+fmtC(gtHC>0?gtIngreso/gtHC:0)+'</td></tr>';
+
+  html+='</tbody></table></div>';
+
+  // Visual: Bar chart comparison
+  var maxBar=Math.max(gtIngreso,gtCosto)||1;
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
+
+  // Ingresos vs Costos por área
+  html+='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:700;margin-bottom:12px;">Ingresos vs Costos por Área</div>';
+  areas.forEach(function(a){
+    var ing=(d.ingresosPorArea[a]||{}).total||0;
+    var cos=((d.costosPorArea[a]||{}).total||0)*d.numMeses;
+    var maxA=Math.max(ing,cos)||1;
+    html+='<div style="margin-bottom:10px;"><div style="font-size:11px;font-weight:600;margin-bottom:4px;">'+esc(a)+'</div>'+
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">'+
+      '<div style="width:50px;font-size:9px;color:var(--text3);">Ingreso</div>'+
+      '<div style="flex:1;background:var(--bg-elev);border-radius:3px;height:14px;overflow:hidden;">'+
+      '<div style="height:100%;width:'+(ing/maxA*100)+'%;background:#10b981;border-radius:3px;"></div></div>'+
+      '<div style="width:70px;font-size:10px;text-align:right;color:#10b981;font-weight:600;">$'+fmtC(ing)+'</div></div>'+
+      '<div style="display:flex;align-items:center;gap:6px;">'+
+      '<div style="width:50px;font-size:9px;color:var(--text3);">Costo</div>'+
+      '<div style="flex:1;background:var(--bg-elev);border-radius:3px;height:14px;overflow:hidden;">'+
+      '<div style="height:100%;width:'+(cos/maxA*100)+'%;background:#ef4444;border-radius:3px;"></div></div>'+
+      '<div style="width:70px;font-size:10px;text-align:right;color:#ef4444;font-weight:600;">$'+fmtC(cos)+'</div></div></div>';
+  });
+  html+='</div>';
+
+  // Margen donut
+  html+='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;">'+
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:700;margin-bottom:12px;">Composición de Ingresos</div>';
+  var colors=['#f97316','#3b82f6','#10b981','#a855f7','#ef4444','#f59e0b'];
+  var cx=80,cy=80,r=65,ir=40;
+  var svg='<div style="display:flex;align-items:center;gap:20px;"><svg viewBox="0 0 160 160" style="width:140px;height:140px;">';
+  var cumAngle=0;var areaList=areas.filter(function(a){return(d.ingresosPorArea[a]||{}).total>0;});
+  areaList.forEach(function(a,i){
+    var pct=((d.ingresosPorArea[a]||{}).total||0)/d.ingresoTotal;
+    var angle=pct*360;if(angle<0.5)return;
+    var startRad=(cumAngle-90)*Math.PI/180;var endRad=((cumAngle+angle)-90)*Math.PI/180;
+    var x1=cx+r*Math.cos(startRad),y1=cy+r*Math.sin(startRad);
+    var x2=cx+r*Math.cos(endRad),y2=cy+r*Math.sin(endRad);
+    var ix1=cx+ir*Math.cos(endRad),iy1=cy+ir*Math.sin(endRad);
+    var ix2=cx+ir*Math.cos(startRad),iy2=cy+ir*Math.sin(startRad);
+    var la=angle>180?1:0;
+    svg+='<path d="M'+x1+' '+y1+' A'+r+' '+r+' 0 '+la+' 1 '+x2+' '+y2+' L'+ix1+' '+iy1+' A'+ir+' '+ir+' 0 '+la+' 0 '+ix2+' '+iy2+' Z" fill="'+colors[i%colors.length]+'" opacity="0.85"/>';
+    cumAngle+=angle;
+  });
+  svg+='<text x="'+cx+'" y="'+(cy-2)+'" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="800">$'+fmtC(d.ingresoTotal)+'</text>';
+  svg+='<text x="'+cx+'" y="'+(cy+10)+'" text-anchor="middle" fill="var(--text3)" font-size="7">TOTAL</text>';
+  svg+='</svg><div style="display:flex;flex-direction:column;gap:4px;">';
+  areaList.forEach(function(a,i){
+    var pct=((d.ingresosPorArea[a]||{}).total||0)/d.ingresoTotal*100;
+    svg+='<div style="display:flex;align-items:center;gap:6px;font-size:11px;">'+
+      '<div style="width:10px;height:10px;border-radius:2px;background:'+colors[i%colors.length]+';"></div>'+
+      '<span style="min-width:80px;">'+esc(a)+'</span>'+
+      '<span style="font-weight:700;">$'+fmtC((d.ingresosPorArea[a]||{}).total||0)+'</span>'+
+      '<span style="color:var(--text3);font-size:10px;">'+pct.toFixed(1)+'%</span></div>';
+  });
+  svg+='</div></div>';
+  html+=svg+'</div>';
+
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ═══ Detalle por Unidad ═══
+function renderRentDetalle(d){
+  var el=document.getElementById('rentContent');
+
+  // Filtro por área
+  var html='<div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;">'+
+    '<label style="font-size:11px;margin:0;">Área:</label>'+
+    '<select id="rentFiltArea" onchange="renderRentDetalle(window._rentData)" style="width:auto;min-width:160px;padding:6px 10px;font-size:12px;">'+
+    '<option value="">— Todas —</option>'+
+    '<option value="Vehiculos">Vehículos</option>'+
+    '<option value="Almacenes">Almacenes</option>'+
+    '<option value="Administrativa">Administrativa</option>'+
+    '<option value="Gerencia">Gerencia</option></select></div>';
+
+  var filtArea=document.getElementById('rentFiltArea');
+  var fa=filtArea?filtArea.value:'';
+
+  html+='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;">'+
+    '<thead><tr style="background:var(--bg-elev);">'+
+    '<th style="padding:6px 10px;text-align:left;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Área</th>'+
+    '<th style="padding:6px 10px;text-align:left;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Unidad</th>'+
+    '<th style="padding:6px 10px;text-align:center;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">HC</th>'+
+    '<th style="padding:6px 10px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Costo/Mes</th>'+
+    '<th style="padding:6px 10px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Costo Total</th>'+
+    '<th style="padding:6px 10px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">% del Costo</th>'+
+    '</tr></thead><tbody>';
+
+  var costoGlobal=d.costoTotal*d.numMeses;
+  var idx=0;
+  var areasOrdered=Object.keys(d.costosPorArea).sort();
+  areasOrdered.forEach(function(a){
+    if(fa&&a!==fa)return;
+    var areaData=d.costosPorArea[a];
+    var unidades=Object.keys(areaData.unidades).sort();
+    unidades.forEach(function(u){
+      var ud=areaData.unidades[u];
+      var costoT=ud.total*d.numMeses;
+      var peso=costoGlobal>0?(costoT/costoGlobal*100):0;
+      html+='<tr style="border-bottom:1px solid var(--border);'+(idx%2?'background:var(--bg-elev);':'')+'">'+
+        '<td style="padding:5px 10px;font-weight:600;">'+esc(a)+'</td>'+
+        '<td style="padding:5px 10px;">'+esc(u)+'</td>'+
+        '<td style="padding:5px 10px;text-align:center;">'+ud.headcount+'</td>'+
+        '<td style="padding:5px 10px;text-align:right;color:#ef4444;">$'+fmtC(ud.total)+'</td>'+
+        '<td style="padding:5px 10px;text-align:right;font-weight:600;color:#ef4444;">$'+fmtC(costoT)+'</td>'+
+        '<td style="padding:5px 10px;text-align:right;color:var(--text3);">'+peso.toFixed(1)+'%</td></tr>';
+      idx++;
+    });
+  });
+
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+// ═══ Evolución Mensual ═══
+function renderRentMensual(d){
+  var el=document.getElementById('rentContent');
+
+  // Calcular P&L por mes
+  var mesesData=d.mesesArr.map(function(m){
+    var ingreso=0;
+    Object.keys(d.ingresosPorArea).forEach(function(a){ingreso+=(d.ingresosPorArea[a].meses[m]||0);});
+    return{mes:m,ingreso:ingreso,costo:d.costoTotal,margen:ingreso-d.costoTotal};
+  });
+
+  // Line chart
+  var maxY=0;mesesData.forEach(function(m){var v=Math.max(m.ingreso,m.costo);if(v>maxY)maxY=v;});
+  maxY=maxY*1.1||1;
+
+  var cW=600,cH=220,pad=60,plotW=cW-pad-20,plotH=cH-40;
+  var html='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px;">'+
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:700;margin-bottom:12px;">Ingresos vs Costo Planilla — Mensual</div>'+
+    '<svg viewBox="0 0 '+cW+' '+cH+'" style="width:100%;font-family:inherit;">';
+
+  // Grid
+  for(var gi=0;gi<=4;gi++){
+    var gy=15+plotH-plotH*(gi/4);var gv=maxY*(gi/4);
+    html+='<line x1="'+pad+'" y1="'+gy+'" x2="'+(cW-20)+'" y2="'+gy+'" stroke="var(--border)" stroke-width="0.5"/>';
+    html+='<text x="'+(pad-4)+'" y="'+(gy+3)+'" fill="var(--text3)" font-size="8" text-anchor="end">$'+fmtC(gv)+'</text>';
+  }
+
+  // Ingreso line
+  var ptsI=[];var ptsC=[];
+  mesesData.forEach(function(m,i){
+    var x=pad+i/(Math.max(mesesData.length-1,1))*plotW;
+    var yI=15+plotH-plotH*(m.ingreso/maxY);
+    var yC=15+plotH-plotH*(m.costo/maxY);
+    ptsI.push(x.toFixed(1)+','+yI.toFixed(1));
+    ptsC.push(x.toFixed(1)+','+yC.toFixed(1));
+    var parts=m.mes.split('-');
+    html+='<text x="'+x.toFixed(1)+'" y="'+(15+plotH+14)+'" fill="var(--text3)" font-size="7" text-anchor="middle">'+MESES_LABEL[parseInt(parts[1])]+'</text>';
+    // Dots
+    html+='<circle cx="'+x.toFixed(1)+'" cy="'+yI.toFixed(1)+'" r="3" fill="#10b981"/>';
+    html+='<circle cx="'+x.toFixed(1)+'" cy="'+yC.toFixed(1)+'" r="3" fill="#ef4444"/>';
+    // Margen bar
+    if(m.margen>=0){
+      html+='<rect x="'+(x-3)+'" y="'+yI.toFixed(1)+'" width="6" height="'+(yC-yI).toFixed(1)+'" fill="#10b981" opacity="0.15" rx="1"/>';
+    }else{
+      html+='<rect x="'+(x-3)+'" y="'+yC.toFixed(1)+'" width="6" height="'+(yI-yC).toFixed(1)+'" fill="#ef4444" opacity="0.15" rx="1"/>';
+    }
+  });
+  html+='<polyline points="'+ptsI.join(' ')+'" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
+  html+='<polyline points="'+ptsC.join(' ')+'" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="6,3" stroke-linecap="round"/>';
+
+  // Legend
+  html+='<rect x="'+pad+'" y="'+(cH-8)+'" width="10" height="3" rx="1" fill="#10b981"/>';
+  html+='<text x="'+(pad+14)+'" y="'+(cH-5)+'" fill="var(--text3)" font-size="8">Ingresos</text>';
+  html+='<rect x="'+(pad+80)+'" y="'+(cH-8)+'" width="10" height="3" rx="1" fill="#ef4444"/>';
+  html+='<text x="'+(pad+94)+'" y="'+(cH-5)+'" fill="var(--text3)" font-size="8">Costo Planilla</text>';
+  html+='<rect x="'+(pad+180)+'" y="'+(cH-8)+'" width="10" height="3" rx="1" fill="#10b981" opacity="0.3"/>';
+  html+='<text x="'+(pad+194)+'" y="'+(cH-5)+'" fill="var(--text3)" font-size="8">Margen</text>';
+
+  html+='</svg></div>';
+
+  // Table
+  html+='<div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;overflow-x:auto;">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;">'+
+    '<thead><tr style="background:var(--bg-elev);">'+
+    '<th style="padding:6px 10px;text-align:left;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Mes</th>'+
+    '<th style="padding:6px 10px;text-align:right;font-size:9px;text-transform:uppercase;color:#10b981;border-bottom:1px solid var(--border);">Ingresos</th>'+
+    '<th style="padding:6px 10px;text-align:right;font-size:9px;text-transform:uppercase;color:#ef4444;border-bottom:1px solid var(--border);">Costo</th>'+
+    '<th style="padding:6px 10px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Margen</th>'+
+    '<th style="padding:6px 10px;text-align:right;font-size:9px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);">Margen %</th>'+
+    '</tr></thead><tbody>';
+
+  mesesData.forEach(function(m,i){
+    var pct=m.ingreso>0?(m.margen/m.ingreso*100):0;
+    var parts=m.mes.split('-');
+    var label=MESES_LABEL[parseInt(parts[1])]+' '+parts[0];
+    html+='<tr style="border-bottom:1px solid var(--border);'+(i%2?'background:var(--bg-elev);':'')+'">'+
+      '<td style="padding:5px 10px;font-weight:600;">'+label+'</td>'+
+      '<td style="padding:5px 10px;text-align:right;color:#10b981;font-weight:600;">$'+fmtC(m.ingreso)+'</td>'+
+      '<td style="padding:5px 10px;text-align:right;color:#ef4444;">$'+fmtC(m.costo)+'</td>'+
+      '<td style="padding:5px 10px;text-align:right;font-weight:700;color:'+(m.margen>=0?'#10b981':'#ef4444')+';">$'+fmtC(m.margen)+'</td>'+
+      '<td style="padding:5px 10px;text-align:right;color:'+(pct>=0?'#10b981':'#ef4444')+';">'+pct.toFixed(1)+'%</td></tr>';
+  });
+
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
 }
 
 // ═══════════════════════════════════════════════════════
