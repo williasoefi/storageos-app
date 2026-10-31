@@ -2482,25 +2482,26 @@ var CAT_LABELS={cargos_pagos:'Cargos/Pagos',carga_descarga:'Carga/Descarga',comi
 var MESES_LABEL=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 function fmtC(n){var v=Math.round(parseFloat(n)||0);return v.toLocaleString('en-US');}
 
+// Paginación global para superar max_rows de Supabase
+async function fetchAll(url){
+  var all=[];var page=0;var pageSize=1000;
+  while(true){
+    var sep=url.indexOf('?')>=0?'&':'?';
+    var r=await sbFetch(url+sep+'limit='+pageSize+'&offset='+(page*pageSize));
+    var data=r.ok?await r.json():[];
+    all=all.concat(data);
+    if(data.length<pageSize)break;
+    page++;
+    if(page>20)break;
+  }
+  return all;
+}
+
 async function renderFacturacion(){
   var area=document.getElementById('mainArea');
   area.innerHTML='<div class="loading">Cargando facturación...</div>';
 
   // Cargar datos
-  // Paginación para superar max_rows de Supabase
-  async function fetchAll(url){
-    var all=[];var page=0;var pageSize=1000;
-    while(true){
-      var sep=url.indexOf('?')>=0?'&':'?';
-      var r=await sbFetch(url+sep+'limit='+pageSize+'&offset='+(page*pageSize));
-      var data=r.ok?await r.json():[];
-      all=all.concat(data);
-      if(data.length<pageSize)break;
-      page++;
-      if(page>20)break;// seguridad
-    }
-    return all;
-  }
   var resumen=await fetchAll('/rest/v1/v_facturacion_resumen?select=*&order=periodo_anio.desc,periodo_mes.desc');
   var servicios=await fetchAll('/rest/v1/v_facturacion_por_servicio?select=*');
   var resC=await sbFetch('/rest/v1/clientes_almacen?select=id,razon_social&order=razon_social');
